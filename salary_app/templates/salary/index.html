@@ -1,0 +1,199 @@
+{% load static %}
+{% load compress %}
+{% now "U" as now %}
+<!DOCTYPE html>
+<html lang="ру">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"/>
+    <title>{% block title %}Загрузка CSV{% endblock %}</title>
+    <!-- Apply theme immediately to prevent FOUC (Flash of Unstyled Content) -->
+    <script>
+      (function() {
+        // Получаем тему из localStorage или устанавливаем темную по умолчанию
+        var theme = localStorage.getItem('theme') || 'dark';
+        // Применяем тему к документу до загрузки остального контента
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <!-- CDN styles outside of compressor -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    {% compress css %}
+    <link href="{% static 'salary/styles.css' %}?v={{ now }}" rel="stylesheet">
+    {% endcompress %}
+  </head>
+  <body>
+    <!-- Mobile Navigation (Top) -->
+    <nav class="mobile-nav">
+      <div class="mobile-nav-header">
+        <button class="mobile-menu-toggle" type="button" aria-label="Toggle menu">
+          <i class="bi bi-list"></i>
+        </button>
+        <span class="mobile-nav-title">Меню</span>
+      </div>
+      <div class="mobile-nav-content">
+        <!-- Theme Toggle Button for Mobile -->
+        <button type="button" class="mobile-nav-link theme-toggle-btn-mobile" id="theme-toggle-btn-mobile" onclick="toggleTheme()">
+          <i class="bi bi-sun-fill"></i>
+          <span>Светлая тема</span>
+        </button>
+        <div class="mobile-nav-links">
+          {% if is_admin %}
+            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'sales_list' %}active{% endif %}" href="{% url 'sales_list' %}">
+              <i class="bi bi-house-door"></i>
+              <span>Главная</span>
+            </a>
+            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'production_expense_list' %}active{% endif %}" href="{% url 'production_expense_list' %}">
+              <i class="bi bi-receipt"></i>
+              <span>Расходы</span>
+            </a>
+            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'salary_payment_list' %}active{% endif %}" href="{% url 'salary_payment_list' %}">
+              <i class="bi bi-cash-coin"></i>
+              <span>Зарплата</span>
+            </a>
+            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'ai_analysis' %}active{% endif %}" href="{% url 'ai_analysis' %}">
+              <i class="bi bi-graph-up-arrow"></i>
+              <span>AI Анализ</span>
+            </a>
+          {% endif %}
+        </div>
+        {% if user.is_authenticated %}
+          <div class="mobile-nav-user">
+            {% if is_admin and request.resolver_match.url_name != 'users_list' %}
+              <a href="{% url 'users_list' %}" class="mobile-nav-link mobile-user-link">
+                <i class="bi bi-person-circle"></i>
+                <span>{{ current_user }}</span>
+              </a>
+            {% else %}
+              <div class="mobile-nav-link mobile-user-link {% if request.resolver_match.url_name == 'users_list' %}active{% endif %}">
+                <i class="bi bi-person-circle"></i>
+                <span>{{ current_user }}</span>
+              </div>
+            {% endif %}
+            <form method="post" action="{% url 'logout' %}" class="mobile-logout-form">
+              {% csrf_token %}
+              <button type="submit" class="mobile-nav-link mobile-logout-btn">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Выйти</span>
+              </button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    </nav>
+
+    <div class="app-wrapper">
+      <!-- Desktop Sidebar Navigation (Left) -->
+      <aside class="sidebar" id="sidebar">
+        <nav class="sidebar-nav">
+          <!-- Прокручиваемая область для навигационных кнопок -->
+          <div class="sidebar-nav-scrollable">
+            <!-- Toggle Sidebar Button and Theme Toggle Button in one row -->
+            <div class="sidebar-controls-row">
+              <button type="button" class="sidebar-link theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" data-tooltip="Переключить тему">
+                <i class="bi bi-sun-fill"></i>
+              </button>
+              <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="Свернуть/Развернуть меню">
+                <i class="bi bi-chevron-left" id="sidebar-toggle-icon"></i>
+              </button>
+            </div>
+            {% if is_admin %}
+              <a class="sidebar-link {% if request.resolver_match.url_name == 'sales_list' %}active{% endif %}" href="{% url 'sales_list' %}" data-tooltip="Главная">
+                <i class="bi bi-house-door"></i>
+                <span>Главная</span>
+              </a>
+              <a class="sidebar-link {% if request.resolver_match.url_name == 'production_expense_list' %}active{% endif %}" href="{% url 'production_expense_list' %}" data-tooltip="Расходы">
+                <i class="bi bi-receipt"></i>
+                <span>Расходы</span>
+              </a>
+              <a class="sidebar-link {% if request.resolver_match.url_name == 'salary_payment_list' %}active{% endif %}" href="{% url 'salary_payment_list' %}" data-tooltip="Зарплата">
+                <i class="bi bi-cash-coin"></i>
+                <span>Зарплата</span>
+              </a>
+              <a class="sidebar-link {% if request.resolver_match.url_name == 'ai_analysis' %}active{% endif %}" href="{% url 'ai_analysis' %}" data-tooltip="AI Анализ">
+                <i class="bi bi-graph-up-arrow"></i>
+                <span>AI Анализ</span>
+              </a>
+            {% endif %}
+          </div>
+          <!-- Закрепленные элементы внизу -->
+          {% if user.is_authenticated %}
+            <div class="sidebar-user-info">
+              {% if is_admin and request.resolver_match.url_name != 'users_list' %}
+                <a href="{% url 'users_list' %}" class="sidebar-link sidebar-user-link" data-tooltip="{{ current_user }}">
+                  <i class="bi bi-person-circle"></i>
+                  <span>{{ current_user }}</span>
+                </a>
+              {% else %}
+                <div class="sidebar-link sidebar-user-link {% if request.resolver_match.url_name == 'users_list' %}active{% endif %}" data-tooltip="{{ current_user }}">
+                  <i class="bi bi-person-circle"></i>
+                  <span>{{ current_user }}</span>
+                </div>
+              {% endif %}
+            </div>
+            <form method="post" action="{% url 'logout' %}" class="sidebar-logout-form">
+              {% csrf_token %}
+              <button type="submit" class="sidebar-link sidebar-logout-btn" data-tooltip="Выйти">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Выйти</span>
+              </button>
+            </form>
+          {% endif %}
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <div class="content-window">
+          <div class="container py-4">
+            {% block body %}{% endblock %}
+          </div>
+        </div>
+      </main>
+    </div>
+
+    {% block script %}
+      <!-- CDN scripts outside of compressor -->
+      <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <!-- Theme Toggle Script -->
+      <script src="{% static 'salary/theme-toggle.js' %}"></script>
+      <!-- Sidebar Toggle Script -->
+      <script src="{% static 'salary/sidebar-toggle.js' %}"></script>
+      {% compress js %}
+      <script>
+        // General initialization script for all pages
+        $(document).ready(function() {
+          // Initialize Bootstrap tooltips
+          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+          var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+          })
+          
+          // Mobile menu toggle
+          $('.mobile-menu-toggle').on('click', function() {
+            $('.mobile-nav').toggleClass('mobile-nav-open');
+            $(this).find('i').toggleClass('bi-list bi-x-lg');
+          });
+          
+          // Close mobile menu when clicking on a link
+          $('.mobile-nav-link').on('click', function() {
+            $('.mobile-nav').removeClass('mobile-nav-open');
+            $('.mobile-menu-toggle i').removeClass('bi-x-lg').addClass('bi-list');
+          });
+          
+          // Close mobile menu when clicking outside
+          $(document).on('click', function(e) {
+            if (!$(e.target).closest('.mobile-nav').length && $('.mobile-nav').hasClass('mobile-nav-open')) {
+              $('.mobile-nav').removeClass('mobile-nav-open');
+              $('.mobile-menu-toggle i').removeClass('bi-x-lg').addClass('bi-list');
+            }
+          });
+        });
+      </script>
+      {% endcompress %}
+    {% endblock %}
+    
+  </body>
+</html>

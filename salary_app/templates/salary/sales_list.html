@@ -1,0 +1,398 @@
+{% extends "salary/index.html" %}
+{% load custom_filters %}
+{% load static %}
+
+{% block head %}
+{{ block.super }}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+{% endblock %}
+
+{% block body %}
+
+<div id="fixed-toast" class="position-fixed top-50 start-50 translate-middle p-3 bg-success text-white rounded shadow d-none" style="min-width:200px; text-align:center; z-index:1055;">
+    <span id="toast-message">Загрузка данных...</span>
+</div>
+
+<!-- Page Header -->
+<div class="page-header no-print mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="page-title mb-0">
+            <i class="bi bi-graph-up-arrow me-2"></i>Аналитика Продаж
+        </h1>
+        <form id="updateSalesForm" method="POST" action="{% url 'index' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-load-data" id="updateSalesBtn" title="Загрузить новые сделки из Bitrix24">
+                <span class="btn-content">
+                    <i class="bi bi-cloud-upload me-2"></i>Загрузить новые сделки
+                </span>
+                <span class="btn-loading d-none">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Загрузка...
+                </span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- KPI Cards Section -->
+{% if sales %}
+<div class="kpi-cards-container">
+    {% if is_admin %}
+    <div class="kpi-card kpi-card-primary">
+        <div class="kpi-card-title">Общие продажи</div>
+        <div class="kpi-card-value">{{ total_sales|spaced_number }} ₽</div>
+        <div class="kpi-card-subtitle">за выбранный период</div>
+    </div>
+    {% endif %}
+    <div class="kpi-card kpi-card-secondary">
+        <div class="kpi-card-title">Выплаты (Зарплаты)</div>
+        <div class="kpi-card-value">{{ salary_paid|spaced_number }} ₽</div>
+        <div class="kpi-card-subtitle">выдано из {{ sales|sum:'salary'|spaced_number }} ₽</div>
+    </div>
+    {% if is_admin %}
+    <div class="kpi-card kpi-card-tertiary">
+        <div class="kpi-card-title">Расходы</div>
+        <div class="kpi-card-value">{{ total_expenses|spaced_number }} ₽</div>
+        <div class="kpi-card-subtitle">за выбранный период</div>
+    </div>
+    {% else %}
+    <div class="kpi-card kpi-card-secondary">
+        <div class="kpi-card-title">Остаток зарплаты</div>
+        <div class="kpi-card-value">{{ salary_left|spaced_number }} ₽</div>
+        <div class="kpi-card-subtitle">к выплате</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Filter Section -->
+<div class="filter-section no-print">
+    <form method="get" id="filterForm" class="row g-3 align-items-end">
+        <div class="col-md-12 col-lg-3 filter-field-wrapper">
+            <label class="form-label">Менеджер</label>
+            {% if is_admin %}
+            <select name="manager" class="form-select form-select-sm">
+                <option value="">Все</option>
+                {% for id, full_name in managers %}
+                <option value="{{ id }}" {% if request.GET.manager == id|stringformat:"s" %}selected{% endif %}>{{ full_name }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <select class="form-select form-select-sm" disabled>
+                <option>{{ current_user }}</option>
+            </select>
+            <input type="hidden" name="manager" value="{{ request.user.id }}">
+            {% endif %}
+        </div>
+
+        <div class="col-md-12 col-lg-6 filter-field-wrapper">
+            <div class="filter-toggle-group">
+                <input type="radio" name="filter_type" value="month" id="filter_month" {% if request.GET.filter_type != "date_range" %}checked{% endif %} class="filter-toggle-input">
+                <label for="filter_month" class="filter-toggle-btn {% if request.GET.filter_type != "date_range" %}active{% endif %}">По месяцу</label>
+                <input type="radio" name="filter_type" value="date_range" id="filter_date_range" {% if request.GET.filter_type == "date_range" %}checked{% endif %} class="filter-toggle-input">
+                <label for="filter_date_range" class="filter-toggle-btn {% if request.GET.filter_type == "date_range" %}active{% endif %}">По диапазону</label>
+            </div>
+            <div id="month_filter_group" class="input-group input-group-sm mt-2">
+                <select name="month" class="form-select">
+                    <option value="">Все</option>
+                    {% for num, name in months.items %}
+                        <option value="{{ num }}" {% if request.GET.month == num|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <select name="year" class="form-select">
+                    <option value="">Все</option>
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="date_range_filter_group" class="input-group input-group-sm mt-2">
+                {% now "Y-m-d" as today %}
+                <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+                <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to|default:today }}">
+            </div>
+        </div>
+
+        <div class="col-md-12 col-lg-3 filter-actions-wrapper">
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary btn-sm" id="applyFilterBtn">
+                    <span class="btn-content">
+                        <i class="bi bi-search me-1"></i>Применить
+                    </span>
+                    <span class="btn-loading d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Загрузка...
+                    </span>
+                </button>
+                <a href="{% url 'sales_list' %}" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-x-lg me-1"></i>Сбросить
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+        <!-- Charts Card -->
+        {% if is_admin %}
+        <div class="card mb-2 charts-card">
+            <div class="card-header p-2">
+                <ul class="nav nav-pills card-header-pills nav-fill" id="chart-toggle-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="btnMonthChart" data-bs-toggle="pill" data-bs-target="#monthChartContainer" type="button" role="tab">Продажи</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="btnManagerChart" data-bs-toggle="pill" data-bs-target="#managerChartContainer" type="button" role="tab">Продажи по менеджерам</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="btnSalaryManagerMonthChart" data-bs-toggle="pill" data-bs-target="#salaryManagerMonthChartContainer" type="button" role="tab">Зарплата</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="btnExpenseMonthChart" data-bs-toggle="pill" data-bs-target="#expenseMonthChartContainer" type="button" role="tab">Расходы</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="btnExpenseTypeChart" data-bs-toggle="pill" data-bs-target="#expenseTypeChartContainer" type="button" role="tab">Виды расходов</button>
+                    </li>
+
+                </ul>
+            </div>
+            <div class="card-body p-2">
+                <div class="tab-content" id="chart-tab-content" style="width: 100%;">
+                    <div class="tab-pane fade show active" id="monthChartContainer" role="tabpanel">
+                        <div class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="salesSalaryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="managerChartContainer" role="tabpanel">
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="filter-toggle-group">
+                                <input type="radio" name="manager_chart_type" value="bar" id="manager_chart_bar" checked class="filter-toggle-input">
+                                <label for="manager_chart_bar" class="filter-toggle-btn active" id="showManagerBarChart">Столбчатая</label>
+                                <input type="radio" name="manager_chart_type" value="pie" id="manager_chart_pie" class="filter-toggle-input">
+                                <label for="manager_chart_pie" class="filter-toggle-btn" id="showManagerPieChart">Круговая</label>
+                            </div>
+                        </div>
+                        <div id="managerBarChartContainer" class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="managerSalesChart"></canvas>
+                        </div>
+                        <div id="managerPieChartContainer" class="d-flex justify-content-center d-none" style="height: 400px;">
+                            <canvas id="managerSalesPieChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="expenseMonthChartContainer" role="tabpanel">
+                        <div class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="expenseMonthChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="expenseTypeChartContainer" role="tabpanel">
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="filter-toggle-group">
+                                <input type="radio" name="expense_type_chart_type" value="bar" id="expense_type_chart_bar" checked class="filter-toggle-input">
+                                <label for="expense_type_chart_bar" class="filter-toggle-btn active" id="showExpenseTypeBarChart">Столбчатая</label>
+                                <input type="radio" name="expense_type_chart_type" value="pie" id="expense_type_chart_pie" class="filter-toggle-input">
+                                <label for="expense_type_chart_pie" class="filter-toggle-btn" id="showExpenseTypePieChart">Круговая</label>
+                            </div>
+                        </div>
+                        <div id="expenseTypeBarChartContainer" class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="expenseTypeChart"></canvas>
+                        </div>
+                        <div id="expenseTypePieChartContainer" class="d-flex justify-content-center d-none" style="height: 400px;">
+                            <canvas id="expenseTypePieChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="salaryManagerMonthChartContainer" role="tabpanel">
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="filter-toggle-group">
+                                <input type="radio" name="salary_chart_type" value="bar" id="salary_chart_bar" checked class="filter-toggle-input">
+                                <label for="salary_chart_bar" class="filter-toggle-btn active" id="showSalaryBarChart">Столбчатая</label>
+                                <input type="radio" name="salary_chart_type" value="pie" id="salary_chart_pie" class="filter-toggle-input">
+                                <label for="salary_chart_pie" class="filter-toggle-btn" id="showSalaryPieChart">Круговая</label>
+                            </div>
+                        </div>
+                        <div id="salaryBarChartContainer" class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="salaryManagerMonthChart"></canvas>
+                        </div>
+                        <div id="salaryPieChartContainer" class="d-flex justify-content-center d-none" style="height: 400px;">
+                            <canvas id="salaryManagerPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Sales Table Card -->
+        <div class="card sales-report-card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center sales-report-header">
+                <h5 class="mb-0"><i class="bi bi-table me-2"></i>Отчет по продажам</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 sales-data-table">
+                        <thead>
+                            <tr>
+                                <th class="text-start ps-4">Период</th>
+                                <th class="text-end">Сумма</th>
+                                <th class="text-end">Зарплата</th>
+                                <th class="text-center" style="width: 60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month_num, data in grouped_sales.items %}
+                                {% with year=month_num.0 month=month_num.1 sales_count=data.sales|length %}
+                                <tr class="table-month-summary">
+                                    <td class="text-start ps-4">
+                                        <span class="month-name">{{ months|dict_get:month }} {{ year }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="month-total-value">{{ data.total_sale|spaced_number }} ₽</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="month-total-value">{{ data.total_salary|spaced_number }} ₽</strong>
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm toggle-btn" data-month="{{ year }}-{{ month }}">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="month-details-wrapper month-{{ year }}-{{ month }} d-none">
+                                    <td colspan="4" class="p-0">
+                                        <div class="pb-4">
+                                            <div class="sales-details-container">
+                                                <div class="scrollable-table">
+                                                    <table class="table align-middle mb-0 sales-details-table">
+                                                        <thead class="sales-details-thead">
+                                                            <tr>
+                                                                <th class="sortable-header text-start d-none d-md-table-cell" data-sort-key="0" data-sort-type="number" style="width: 80px; padding-left: 1rem;">
+                                                                    <span class="sort-text">ID</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-start" data-sort-key="1" data-sort-type="string" style="min-width: 120px;">
+                                                                    <span class="sort-text">Менеджер</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-start d-none d-lg-table-cell" data-sort-key="2" data-sort-type="string" style="min-width: 150px;">
+                                                                    <span class="sort-text">Компания</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-start d-none d-lg-table-cell" data-sort-key="3" data-sort-type="string" style="width: 120px;">
+                                                                    <span class="sort-text">Счет</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-start" data-sort-key="4" data-sort-type="date" style="width: 120px; min-width: 120px;">
+                                                                    <span class="sort-text">Дата</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-end" data-sort-key="5" data-sort-type="number" style="width: 140px;">
+                                                                    <span class="sort-text">Сумма</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                                <th class="sortable-header text-end" data-sort-key="6" data-sort-type="number" style="width: 140px;">
+                                                                    <span class="sort-text">Зарплата</span>
+                                                                    <span class="sort-icon"></span>
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for sale in data.sales %}
+                                                            <tr class="sale-row">
+                                                                <td class="text-start d-none d-md-table-cell sale-id" style="padding-left: 1rem;">{{ sale.id_number }}</td>
+                                                                <td class="text-start sale-manager">{{ sale.manager }}</td>
+                                                                <td class="text-start d-none d-lg-table-cell sale-company">{{ sale.company|default_if_none:"" }}</td>
+                                                                <td class="text-start d-none d-lg-table-cell sale-account">{{ sale.account_number }}</td>
+                                                                <td class="text-start sale-date">{{ sale.closing_date|date:"d.m.Y" }}</td>
+                                                                <td class="text-end nowrap sale-amount">{{ sale.sale|spaced_number }} ₽</td>
+                                                                <td class="text-end nowrap sale-salary">{{ sale.salary|spaced_number }} ₽</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endwith %}
+                            {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center p-5 empty-state">
+                                        <div class="empty-state-content">
+                                            <i class="bi bi-inbox" style="font-size: 3rem; color: var(--text-secondary); opacity: 0.5;"></i>
+                                            <h5 class="mt-3 mb-2" style="color: var(--text-primary);">Нет данных для отображения</h5>
+                                            <p class="text-muted mb-0">Попробуйте изменить фильтры или обновить продажи.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+{% endblock %}
+
+{% block script %}
+{{ block.super }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+{{ chart_data_by_manager|json_script:"chart-data-by-manager" }}
+{{ salary_chart_data_by_manager|json_script:"salary-chart-data-by-manager" }}
+{{ chart_data|json_script:"chart-data" }}
+{{ expense_chart_data|json_script:"expense-chart-data" }}
+{{ expense_type_chart_data|json_script:"expense-type-chart-data" }}
+
+<script src="{% static 'salary/inbox.js' %}?v={{ now }}"></script>
+<script>
+$(document).ready(function() {
+    // Filter toggle buttons - update active state
+    $('.filter-toggle-input').on('change', function() {
+        $('.filter-toggle-btn').removeClass('active');
+        $(this).next('.filter-toggle-btn').addClass('active');
+    });
+
+    // Loading indicators for filter form
+    $('#filterForm').on('submit', function() {
+        const btn = $('#applyFilterBtn');
+        const btnContent = btn.find('.btn-content');
+        const btnLoading = btn.find('.btn-loading');
+        
+        if (btnContent.length && btnLoading.length) {
+            btnContent.addClass('d-none');
+            btnLoading.removeClass('d-none');
+            btn.prop('disabled', true);
+        }
+    });
+
+    // Loading indicator for update sales button
+    $('#updateSalesForm').on('submit', function() {
+        const btn = $('#updateSalesBtn');
+        const btnContent = btn.find('.btn-content');
+        const btnLoading = btn.find('.btn-loading');
+        
+        if (btnContent.length && btnLoading.length) {
+            btnContent.addClass('d-none');
+            btnLoading.removeClass('d-none');
+            btn.prop('disabled', true);
+        }
+    });
+
+    // Restore button state if form submission fails (handled by inbox.js)
+    // This will be called from inbox.js finally block
+    window.restoreButtonState = function(buttonId) {
+        const btn = $('#' + buttonId);
+        const btnContent = btn.find('.btn-content');
+        const btnLoading = btn.find('.btn-loading');
+        
+        if (btnContent.length && btnLoading.length) {
+            btnContent.removeClass('d-none');
+            btnLoading.addClass('d-none');
+            btn.prop('disabled', false);
+        }
+    };
+});
+</script>
+{% endblock %}

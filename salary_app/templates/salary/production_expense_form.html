@@ -1,0 +1,34 @@
+{% extends "salary/index.html" %}
+{% load widget_tweaks %}
+
+{% block head %}
+{{ block.super }}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+{% endblock %}
+
+{% block body %}
+<div class="row page-font-small gx-2">
+    <div class="col-lg-12">
+        <div class="card sales-report-card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>{{ title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% with add_button_class="btn btn-outline-secondary" is_modal=False is_page=True %}
+                        {% include "salary/_production_expense_form_fields.html" %}
+                    {% endwith %}
+
+                    <div class="d-flex justify-content-end gap-2">
+                      <a href="{% url 'production_expense_list' %}" class="btn btn-secondary btn-sm"><i class="bi bi-x-lg me-1"></i>Отмена</a>
+                      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+                    </div>
+                  </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+requests>=2.31.0
+python-dotenv>=1.0.1
+django-compressor>=4.5
+llama-cpp-python>=0.2.0
+psutil>=5.9.0

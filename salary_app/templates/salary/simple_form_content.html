@@ -1,0 +1,28 @@
+{% load widget_tweaks %}
+<div class="page-font-small">
+    <form method="post" action="{{ action_url }}" class="{% if is_modal %}child-form{% endif %}">
+    {% csrf_token %}
+    
+    {% for field in form %}
+        <div class="mb-3">
+        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+        {% render_field field class="form-control" %}
+        {% if field.help_text %}
+            <small class="form-text text-muted">{{ field.help_text }}</small>
+        {% endif %}
+        {% for error in field.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+        </div>
+    {% endfor %}
+
+    <div class="d-flex justify-content-end gap-2">
+        {% if is_modal %}
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+        {% else %}
+            <a href="{{ request.META.HTTP_REFERER|default:'production_expense_list' }}" class="btn btn-secondary">Отмена</a>
+        {% endif %}
+        <button type="submit" class="btn btn-primary {% if is_modal %}btn-sm{% endif %}">Сохранить</button>
+    </div>
+    </form>
+</div>

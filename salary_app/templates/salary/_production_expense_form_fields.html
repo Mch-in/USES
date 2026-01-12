@@ -1,0 +1,38 @@
+{% load widget_tweaks %}
+{% for field in form %}
+<div class="mb-3">
+    {% if field.name != 'expense_date' or not is_page %}
+        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+    {% endif %}
+    {% if field.name == 'employee' %}
+    <div class="input-group">
+        {% render_field field class="form-select" %}
+        <a href="{% url 'employee_create' %}" class="{{ add_button_class }}" {% if is_modal %}data-modal-title="Новый сотрудник"{% endif %} title="Добавить нового сотрудника"><i class="bi bi-plus"></i></a>
+    </div>
+    {% elif field.name == 'expense_type' %}
+    <div class="input-group">
+        {% render_field field class="form-select" %}
+        <a href="{% url 'expense_type_create' %}" class="{{ add_button_class }}" {% if is_modal %}data-modal-title="Новый вид расходов"{% endif %} title="Добавить новый вид расходов"><i class="bi bi-plus"></i></a>
+    </div>
+    {% elif field.name == 'expense_date' and is_page %}
+        {{ field.as_hidden }}
+    {% elif field.name == 'amount' %}
+    <input type="text"
+            name="{{ field.name }}"
+            id="{{ field.id_for_label }}"
+            value="{{ field.value|default_if_none:'' }}"
+            class="form-control"
+            placeholder="Введите сумму"
+            autocomplete="off">
+    {% else %}
+    {% render_field field class="form-control" %}
+    {% endif %}
+
+    {% if field.help_text %}
+    <small class="form-text text-muted">{{ field.help_text }}</small>
+    {% endif %}
+    {% for error in field.errors %}
+    <div class="invalid-feedback d-block">{{ error }}</div>
+    {% endfor %}
+</div>
+{% endfor %}

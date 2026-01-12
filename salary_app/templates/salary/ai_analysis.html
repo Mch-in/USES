@@ -1,0 +1,964 @@
+{% extends "salary/index.html" %}
+{% load custom_filters %}
+{% load static %}
+
+{% block head %}
+{{ block.super }}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% csrf_token %}
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+    /* Override container padding for AI Analysis page */
+    body > .container {
+        padding: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        background-color: transparent !important;
+        width: 100% !important;
+    }
+    
+    /* Override any container that wraps our content */
+    .container {
+        padding: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+    
+    /* Ensure content-window centers the dialog */
+    .content-window {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    /* Hide navbar for AI Analysis page */
+    .navbar {
+        display: none !important;
+    }
+    
+    /* Override body styles for AI Analysis page */
+    body {
+        background-color: #f3f4f6 !important;
+        overflow-x: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Ensure main content has proper margin */
+    .ai-main-content {
+        margin-left: 0 !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 4rem);
+        padding: 2rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Center dialog container */
+    .ai-dialog-container {
+        width: 95%;
+        max-width: 1600px;
+        background-color: #ffffff;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        margin: auto;
+        position: relative;
+    }
+    
+    /* Ensure Material Icons display correctly */
+    .material-icons {
+        font-family: 'Material Icons' !important;
+        font-weight: normal;
+        font-style: normal;
+        font-size: 24px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-feature-settings: 'liga';
+        -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Status badges */
+    .ai-status-badge {
+        display: inline-block !important;
+        padding: 5px 12px !important;
+        border-radius: 12px !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+    }
+    
+    .ai-status-ready {
+        background-color: #d4edda !important;
+        color: #155724 !important;
+    }
+    
+    .ai-status-warning {
+        background-color: #fff3cd !important;
+        color: #856404 !important;
+    }
+    
+    .ai-status-error {
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+    }
+    
+    /* AI Analysis table and chart styles - matching main page */
+    #table-result .sales-report-card,
+    #chart-result .charts-card {
+        margin-bottom: 0;
+    }
+    
+    #table-result .table th {
+        padding: 0.875rem 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        text-align: left;
+        border-bottom: 2px solid var(--border-color);
+        background-color: #f9fafb;
+        font-size: 0.875rem;
+    }
+    
+    #table-result .table td {
+        padding: 1rem 1.25rem;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    #table-result .table tbody tr:hover {
+        background-color: #f9fafb;
+    }
+    
+    #table-result .table tbody tr:last-child td {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}
+
+{% block title %}AI Анализ данных{% endblock %}
+
+{% block body %}
+
+<!-- CSRF токен для AJAX запросов -->
+{% csrf_token %}
+
+<div class="bg-gray-100 min-h-screen" style="margin: 0; padding: 0;">
+    <!-- Основной контент -->
+    <main class="ai-main-content flex-1 min-h-screen bg-gray-100" style="margin-left: 0 !important;">
+        <div class="ai-dialog-container">
+        <!-- Status Badge -->
+        <div class="mb-4">
+            <strong>Статус модели:</strong> <span id="model-status" class="ai-status-badge">Проверка...</span>
+        </div>
+        
+        <!-- Search Section -->
+        <div class="mb-6" style="width: 100%; display: flex; align-items: center; gap: 0.75rem;">
+            <div style="flex: 1;">
+                <textarea 
+                       id="analysis-question" 
+                       placeholder="Покажи Топ 10 компаний по сумме сделок"
+                       class="w-full p-4 border rounded-lg shadow-sm focus:ring focus:ring-blue-300 outline-none resize-none"
+                       style="font-size: 1rem; min-height: 3.5rem; max-height: 10rem; overflow-y: auto;"
+                       rows="1"></textarea>
+            </div>
+            <button type="button" 
+                    id="analyze-btn"
+                    class="w-12 h-12 rounded-full shadow flex items-center justify-center flex-shrink-0"
+                    style="min-width: 48px; min-height: 48px; border: none; cursor: pointer; background-color: #ffffff; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+                    <path d="M12 4L12 20M12 4L6 10M12 4L18 10" stroke="#000000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div id="analysis-loading" class="mt-3 d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <span class="ms-2">Анализ выполняется, пожалуйста подождите...</span>
+        </div>
+        
+        <!-- Analysis Result -->
+        <div id="analysis-result" class="mt-3 d-none" style="display: none !important;">
+            <div class="bg-white rounded-2xl p-6 shadow mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-lg font-semibold mb-0">Результат анализа:</h2>
+                    <div id="token-usage" class="text-gray-500 text-sm" style="display: none;">
+                        <span class="material-icons inline-block align-middle mr-1" style="font-size: 16px;">info</span>
+                        <span id="token-info-text">Токены: -</span>
+                    </div>
+                </div>
+                <div id="analysis-text" class="text-break"></div>
+            </div>
+        </div>
+        
+        <!-- Data Cards (Chart and Table) -->
+        <div class="row g-4" style="display: none;" id="data-cards-container">
+            <!-- Chart Card (First) -->
+            <div class="col-12">
+                <div class="card charts-card" id="chart-result" style="display: none;">
+                    <div class="card-header bg-white sales-report-header">
+                        <h4 class="mb-0 sales-report-title"><i class="bi bi-graph-up me-2"></i>График данных</h4>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-center" style="height: 400px;">
+                            <canvas id="table-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Table Card (Second) -->
+            <div class="col-12">
+                <div class="card sales-report-card" id="table-result" style="display: none;">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center sales-report-header">
+                        <h4 class="mb-0 sales-report-title"><i class="bi bi-table me-2"></i>Таблица данных</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive scrollable-table">
+                            <table id="analysis-table" class="table table-hover align-middle mb-0 sales-data-table">
+                                <thead id="table-head">
+                                    <tr></tr>
+                                </thead>
+                                <tbody id="table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </main>
+</div>
+
+{% endblock %}
+
+{% block script %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+<script>
+    // Проверка статуса модели при загрузке
+    document.addEventListener('DOMContentLoaded', function() {
+        checkModelStatus();
+        
+        // Обработчики событий
+        document.getElementById('analyze-btn').addEventListener('click', analyzeData);
+        
+        // Настройка textarea для авторазмера и Shift+Enter
+        const textarea = document.getElementById('analysis-question');
+        if (textarea) {
+            // Функция для автоматического изменения размера
+            function autoResize() {
+                textarea.style.height = 'auto';
+                const scrollHeight = textarea.scrollHeight;
+                const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 24;
+                const maxHeight = lineHeight * 5; // Максимум 5 строк
+                
+                if (scrollHeight <= maxHeight) {
+                    textarea.style.height = scrollHeight + 'px';
+                    textarea.style.overflowY = 'hidden';
+                } else {
+                    textarea.style.height = maxHeight + 'px';
+                    textarea.style.overflowY = 'auto';
+                }
+            }
+            
+            // Обработка ввода текста
+            textarea.addEventListener('input', autoResize);
+            
+            // Обработка Shift+Enter для переноса строки, Enter для отправки
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    analyzeData();
+                }
+                // Shift+Enter обрабатывается браузером по умолчанию (перенос строки)
+            });
+            
+            // Инициализация размера
+            autoResize();
+        }
+    });
+
+    function checkModelStatus() {
+        fetch('{% url "ai_check_model_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                const statusEl = document.getElementById('model-status');
+                if (data.status === 'ready') {
+                    statusEl.textContent = 'Готов к работе';
+                    statusEl.className = 'ai-status-badge ai-status-ready';
+                } else if (data.status === 'loading') {
+                    statusEl.textContent = 'Модель загружается';
+                    statusEl.className = 'ai-status-badge ai-status-warning';
+                    // Повторяем проверку через 3 секунды, если модель загружается
+                    setTimeout(checkModelStatus, 3000);
+                } else if (data.status === 'not_configured') {
+                    statusEl.textContent = 'Не настроена (укажите GPT_MODEL_PATH)';
+                    statusEl.className = 'ai-status-badge ai-status-warning';
+                } else {
+                    statusEl.textContent = data.message || 'Ошибка';
+                    statusEl.className = 'ai-status-badge ai-status-error';
+                }
+            })
+            .catch(error => {
+                const statusEl = document.getElementById('model-status');
+                statusEl.textContent = 'Ошибка проверки статуса';
+                statusEl.className = 'ai-status-badge ai-status-error';
+            });
+    }
+
+    function analyzeData() {
+        const question = document.getElementById('analysis-question').value;
+        const loadingEl = document.getElementById('analysis-loading');
+        const resultEl = document.getElementById('analysis-result');
+        const analysisTextEl = document.getElementById('analysis-text');
+        
+        loadingEl.classList.remove('d-none');
+        resultEl.classList.add('d-none');
+        analysisTextEl.textContent = '';  // Очищаем предыдущий результат
+        
+        // Получаем CSRF токен из скрытого поля формы
+        const csrftoken = getCSRFToken();
+        if (!csrftoken) {
+            alert('Ошибка: CSRF токен не найден. Пожалуйста, обновите страницу.');
+            return;
+        }
+        
+        console.log('Используемый CSRF токен, длина:', csrftoken.length);
+        
+        // Используем streaming для постепенного получения ответа
+        fetch('{% url "ai_analyze_data" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            credentials: 'same-origin',  // Важно для CSRF
+            body: JSON.stringify({
+                question: question,
+                streaming: true  // Включаем streaming
+            })
+        })
+        .then(async response => {
+            const contentType = response.headers.get('Content-Type') || '';
+            const status = response.status;
+            
+            console.log('=== Ответ сервера (Анализ данных) ===');
+            console.log('Status:', status);
+            console.log('Content-Type:', contentType);
+            
+            // Если статус ошибки
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.log('Error Response:', errorText);
+                throw new Error(`Ошибка сервера (${status}): ${errorText.substring(0, 200)}`);
+            }
+            
+            // Если это streaming ответ (Server-Sent Events)
+            if (contentType.includes('text/event-stream')) {
+                console.log('Получен streaming ответ, начинаем обработку...');
+                loadingEl.classList.add('d-none');
+                resultEl.classList.remove('d-none');
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let accumulatedText = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        console.log('Streaming завершен');
+                        break;
+                    }
+                    
+                    // Декодируем chunk
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Обрабатываем строки, разделенные \n\n
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';  // Оставляем неполную строку в буфере
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const jsonStr = line.substring(6);  // Убираем "data: "
+                                const data = JSON.parse(jsonStr);
+                                
+                                if (data.error) {
+                                    analysisTextEl.innerHTML = formatAnalysisText('Ошибка: ' + data.error);
+                                    break;
+                                }
+                                
+                                if (data.done) {
+                                    // Финальное сообщение
+                                    console.log('Streaming завершен, полный текст получен');
+                                    accumulatedText = data.full_text || accumulatedText;
+                                    
+                                    // Проверяем, не пустой ли ответ
+                                    if (!accumulatedText || accumulatedText.trim().length === 0) {
+                                        console.warn('Получен пустой ответ от модели');
+                                        analysisTextEl.innerHTML = formatAnalysisText('Ошибка: Модель не сгенерировала ответ. Возможно, промпт слишком большой или модель не может обработать запрос. Попробуйте переформулировать вопрос или уменьшить объем данных.');
+                                        loadingEl.classList.add('d-none');
+                                        break;
+                                    }
+                                    
+                                    // Обновляем информацию о токенах
+                                    if (data.usage) {
+                                        updateTokenUsage(data.usage);
+                                    }
+                                    
+                                    // Обрабатываем таблицу данных, если есть
+                                    if (data.table_data) {
+                                        console.log('Получены данные таблицы:', data.table_data);
+                                        displayTable(data.table_data);
+                                    } else {
+                                        console.log('Данные таблицы не получены. code_result:', data.code_result);
+                                    }
+                                    
+                                    break;
+                                }
+                                
+                                if (data.chunk) {
+                                    accumulatedText += data.chunk;
+                                    // Обновляем DOM постепенно
+                                    analysisTextEl.innerHTML = formatAnalysisText(accumulatedText);
+                                    // Прокручиваем вниз для видимости нового текста
+                                    analysisTextEl.scrollTop = analysisTextEl.scrollHeight;
+                                    
+                                    // Обновляем информацию о токенах, если есть
+                                    if (data.usage) {
+                                        updateTokenUsage(data.usage);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Ошибка парсинга SSE данных:', e, line);
+                            }
+                        }
+                    }
+                }
+                
+                // Финальное обновление и проверка
+                if (!accumulatedText || accumulatedText.trim().length === 0) {
+                    console.warn('Накопленный текст пустой после streaming');
+                    analysisTextEl.innerHTML = formatAnalysisText('Ошибка: Модель не сгенерировала ответ. Возможно, промпт слишком большой или модель не может обработать запрос. Попробуйте переформулировать вопрос.');
+                    loadingEl.classList.add('d-none');
+                    return { success: false, error: 'Пустой ответ от модели' };
+                }
+                
+                analysisTextEl.innerHTML = formatAnalysisText(accumulatedText);
+                return { success: true, analysis: accumulatedText };
+            } else {
+                // Обычный JSON ответ (fallback, если streaming не поддерживается)
+                console.log('Получен обычный JSON ответ');
+                const data = await response.json();
+                console.log('Parsed JSON Data:', data);
+                loadingEl.classList.add('d-none');
+                if (data.success) {
+                    analysisTextEl.innerHTML = formatAnalysisText(data.analysis);
+                    resultEl.classList.remove('d-none');
+                    // Обновляем информацию о токенах
+                    if (data.usage) {
+                        updateTokenUsage(data.usage);
+                    }
+                    // Обрабатываем таблицу данных, если есть
+                    if (data.table_data) {
+                        console.log('Получены данные таблицы (не-streaming):', data.table_data);
+                        displayTable(data.table_data);
+                    } else {
+                        console.log('Данные таблицы не получены (не-streaming). code_result:', data.code_result);
+                    }
+                } else {
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                }
+                return data;
+            }
+        })
+        .catch(error => {
+            loadingEl.classList.add('d-none');
+            let errorMessage = error.message;
+            if (error.message.includes('JSON')) {
+                errorMessage = 'Ошибка: Сервер вернул не JSON ответ. Проверьте, что llama-server запущен и доступен. ' + error.message;
+            }
+            alert('Ошибка при выполнении анализа: ' + errorMessage);
+            console.error('Детали ошибки:', error);
+        });
+    }
+
+
+    function formatAnalysisText(text) {
+        if (!text) return '';
+        
+        // Сохраняем блоки кода для отображения
+        // Заменяем markdown блоки кода на HTML <pre><code>
+        let cleaned = text
+            // Заменяем блоки кода ```python ... ``` на <pre><code>
+            .replace(/```python\s*\n([\s\S]*?)\n```/g, '<pre class="bg-dark text-light p-3 rounded"><code>$1</code></pre>')
+            // Заменяем блоки кода ``` ... ``` на <pre><code>
+            .replace(/```\s*\n([\s\S]*?)\n```/g, '<pre class="bg-dark text-light p-3 rounded"><code>$1</code></pre>')
+            // Удаляем множественные пустые строки
+            .replace(/\n{3,}/g, '\n\n')
+            // Удаляем пробелы в начале строк (кроме кода)
+            .replace(/^\s+/gm, '')
+            // Удаляем пробелы в конце строк
+            .replace(/\s+$/gm, '');
+        
+        // Форматируем текст для лучшего отображения
+        return cleaned
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    }
+
+    function updateTokenUsage(usage) {
+        const tokenUsageEl = document.getElementById('token-usage');
+        const tokenInfoTextEl = document.getElementById('token-info-text');
+        
+        if (!tokenUsageEl || !tokenInfoTextEl) return;
+        
+        const promptTokens = usage.prompt_tokens || 0;
+        const completionTokens = usage.completion_tokens || 0;
+        const totalTokens = usage.total_tokens || (promptTokens + completionTokens);
+        
+        if (totalTokens > 0) {
+            let tokenText = `Токены: ${totalTokens}`;
+            if (promptTokens > 0 || completionTokens > 0) {
+                tokenText += ` (промпт: ${promptTokens}, ответ: ${completionTokens})`;
+            }
+            tokenInfoTextEl.textContent = tokenText;
+            tokenUsageEl.style.display = 'block';
+        } else {
+            tokenUsageEl.style.display = 'none';
+        }
+    }
+
+    function displayTable(tableData) {
+        if (!tableData || !tableData.headers || !tableData.rows) {
+            console.warn('Нет данных для отображения таблицы');
+            // Скрываем график, если нет данных
+            const chartResultEl = document.getElementById('chart-result');
+            if (chartResultEl) {
+                chartResultEl.classList.add('d-none');
+            }
+            if (window.tableChart) {
+                window.tableChart.destroy();
+                window.tableChart = null;
+            }
+            return;
+        }
+        
+        const tableHeadEl = document.getElementById('table-head');
+        const tableBodyEl = document.getElementById('table-body');
+        const tableResultEl = document.getElementById('table-result');
+        
+        if (!tableHeadEl || !tableBodyEl || !tableResultEl) {
+            console.error('Элементы таблицы не найдены');
+            return;
+        }
+        
+        // Очищаем таблицу
+        tableHeadEl.innerHTML = '';
+        tableBodyEl.innerHTML = '';
+        
+        // Удаляем предыдущий график перед созданием нового
+        if (window.tableChart) {
+            window.tableChart.destroy();
+            window.tableChart = null;
+        }
+        
+        // Создаем заголовки в стиле главной страницы
+        const headerRow = tableHeadEl.querySelector('tr') || document.createElement('tr');
+        headerRow.innerHTML = ''; // Очищаем существующие заголовки
+        tableData.headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            th.className = 'text-start';
+            th.scope = 'col';
+            headerRow.appendChild(th);
+        });
+        if (!tableHeadEl.querySelector('tr')) {
+            tableHeadEl.appendChild(headerRow);
+        }
+        
+        // Создаем строки данных в стиле главной страницы
+        tableData.rows.forEach(row => {
+            const tr = document.createElement('tr');
+            row.forEach((cell, index) => {
+                const td = document.createElement('td');
+                td.className = 'text-start';
+                // Форматируем числа с пробелами для читаемости
+                if (typeof cell === 'number' || (typeof cell === 'string' && /^[\d\s.,]+$/.test(cell.replace(/\s/g, '')))) {
+                    const num = parseFloat(String(cell).replace(/\s/g, '').replace(',', '.'));
+                    if (!isNaN(num) && isFinite(num)) {
+                        td.textContent = num.toLocaleString('ru-RU', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2
+                        });
+                        td.className = 'text-end';
+                    } else {
+                        td.textContent = cell || '';
+                    }
+                } else {
+                    td.textContent = cell || '';
+                }
+                tr.appendChild(td);
+            });
+            tableBodyEl.appendChild(tr);
+        });
+        
+        // Показываем таблицу
+        tableResultEl.style.display = 'block';
+        console.log(`Таблица отображена: ${tableData.headers.length} столбцов, ${tableData.rows.length} строк`);
+        
+        // Показываем карточки данных
+        const dataCards = document.getElementById('data-cards-container');
+        if (dataCards) {
+            dataCards.style.display = '';
+        }
+        
+        // Автоматически строим график на основе данных таблицы
+        buildChartFromTable(tableData);
+    }
+    
+    function buildChartFromTable(tableData) {
+        if (!tableData || !tableData.headers || !tableData.rows || tableData.rows.length === 0) {
+            console.warn('Нет данных для построения графика');
+            return;
+        }
+        
+        const chartResultEl = document.getElementById('chart-result');
+        const chartCanvas = document.getElementById('table-chart');
+        
+        if (!chartResultEl || !chartCanvas) {
+            console.error('Элементы графика не найдены');
+            return;
+        }
+        
+        // Определяем числовые столбцы
+        const headers = tableData.headers;
+        const rows = tableData.rows;
+        
+        // Находим индексы числовых столбцов
+        const numericColumns = [];
+        const textColumns = [];
+        
+        headers.forEach((header, index) => {
+            // Проверяем, является ли столбец числовым
+            let isNumeric = true;
+            let hasNumbers = false;
+            
+            for (const row of rows) {
+                if (row[index] !== null && row[index] !== undefined && row[index] !== '') {
+                    const value = row[index];
+                    const numValue = typeof value === 'number' ? value : parseFloat(value);
+                    if (!isNaN(numValue) && isFinite(numValue)) {
+                        hasNumbers = true;
+                    } else {
+                        isNumeric = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (isNumeric && hasNumbers) {
+                numericColumns.push({ index, header });
+            } else {
+                textColumns.push({ index, header });
+            }
+        });
+        
+        // Если нет числовых столбцов, не строим график
+        if (numericColumns.length === 0) {
+            console.log('Нет числовых столбцов для построения графика');
+            chartResultEl.style.display = 'none';
+            return;
+        }
+        
+        // Используем стили графика с главной страницы
+        // Цветовая палитра: яркие цвета из новой палитры
+        const primaryAccent = 'rgba(109, 91, 255, 0.9)';   // #6D5BFF - фиолетовый для главной серии (из градиента)
+        const primaryAccentBorder = 'rgba(109, 91, 255, 1)';
+        const mintColor = 'rgba(48, 213, 200, 0.9)';  // #30D5C8 - мятный/бирюзовый (яркий вместо серого)
+        const mintColorBorder = 'rgba(48, 213, 200, 1)';
+        const goldenColor = 'rgba(255, 193, 7, 0.9)';  // #FFC107 - яркий желтый
+        const goldenColorBorder = 'rgba(255, 193, 7, 1)';
+        
+        // Последовательная палитра для множественных категорий - яркие цвета
+        const sequentialPalette = [
+            'rgba(109, 91, 255, 0.9)',   // #6D5BFF - фиолетовый (продажи)
+            'rgba(48, 213, 200, 0.9)',   // #30D5C8 - мятный/бирюзовый (зарплата)
+            'rgba(255, 193, 7, 0.9)',    // #FFC107 - яркий желтый (расходы)
+            'rgba(132, 122, 209, 0.9)',  // #847AD1 - светлый фиолетовый
+            'rgba(250, 215, 160, 0.9)',  // #FAD7A0 - мягкий персиковый/оранжевый
+            'rgba(122, 215, 240, 0.9)',  // #7AD7F0 - светлый аквамарин/голубой
+        ];
+        
+        const borderColors = [
+            'rgba(109, 91, 255, 1)',     // #6D5BFF
+            'rgba(48, 213, 200, 1)',     // #30D5C8
+            'rgba(255, 193, 7, 1)',      // #FFC107
+            'rgba(132, 122, 209, 1)',    // #847AD1
+            'rgba(250, 215, 160, 1)',    // #FAD7A0
+            'rgba(122, 215, 240, 1)',    // #7AD7F0
+        ];
+        
+        // Определяем тип графика
+        let chartType = 'bar'; // По умолчанию столбчатая диаграмма
+        let labels = [];
+        let datasets = [];
+        
+        // Если есть текстовые столбцы, используем первый как метки
+        if (textColumns.length > 0) {
+            const labelColumn = textColumns[0];
+            labels = rows.map(row => {
+                const value = row[labelColumn.index];
+                return value !== null && value !== undefined ? String(value) : '';
+            });
+        } else {
+            // Если нет текстовых столбцов, используем индексы
+            labels = rows.map((_, i) => `Запись ${i + 1}`);
+        }
+        
+        // Создаем наборы данных для каждого числового столбца
+        numericColumns.forEach((col, colIndex) => {
+            const data = rows.map(row => {
+                const value = row[col.index];
+                return typeof value === 'number' ? value : parseFloat(value) || 0;
+            });
+            
+            // Первая серия - фиолетовый, вторая - золотистый или серый, остальные - из палитры
+            let backgroundColor, borderColor;
+            if (colIndex === 0) {
+                backgroundColor = primaryAccent; // Purple for first series
+                borderColor = primaryAccentBorder;
+            } else if (colIndex === 1 && numericColumns.length === 2) {
+                backgroundColor = goldenColor; // Golden for second series
+                borderColor = goldenColorBorder;
+            } else {
+                backgroundColor = sequentialPalette[colIndex % sequentialPalette.length];
+                borderColor = borderColors[colIndex % borderColors.length];
+            }
+            
+            datasets.push({
+                label: col.header,
+                data: data,
+                backgroundColor: backgroundColor,
+                borderColor: borderColor,
+                borderWidth: 1.5
+            });
+        });
+        
+        // Если только один числовой столбец и много данных, используем линейный график
+        if (numericColumns.length === 1 && rows.length > 10) {
+            chartType = 'line';
+        }
+        
+        // Если много числовых столбцов, используем группированную столбчатую диаграмму
+        if (numericColumns.length > 1) {
+            chartType = 'bar';
+        }
+        
+        // Удаляем предыдущий график, если есть
+        if (window.tableChart) {
+            window.tableChart.destroy();
+        }
+        
+        // Получаем цвета из CSS переменных для текущей темы
+        const root = document.documentElement;
+        const chartTextColor = getComputedStyle(root).getPropertyValue('--chart-text-color').trim() || '#2E2E3A';
+        const chartAxisColor = getComputedStyle(root).getPropertyValue('--chart-axis-color').trim() || '#6F7381';
+        const chartGridColor = getComputedStyle(root).getPropertyValue('--chart-grid-color').trim() || 'rgba(0, 0, 0, 0.05)';
+        
+        // Опции графика в стиле главной страницы
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    grid: {
+                        color: chartGridColor, // Используем CSS переменную для цвета сетки
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        color: chartAxisColor, // Используем CSS переменную для цвета текста осей
+                        font: {
+                            size: 12 // 12px для осей графика
+                        },
+                        callback: function(value) {
+                            return value.toLocaleString('ru-RU');
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: chartAxisColor, // Используем CSS переменную для цвета текста осей
+                        font: {
+                            size: 12 // 12px для осей графика
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: {
+                            size: 12 // 12px для легенды графика
+                        },
+                        color: chartTextColor // Используем CSS переменную для цвета текста легенды
+                    },
+                    onClick: function(e, legendItem) {
+                        const index = legendItem.datasetIndex;
+                        const chart = this.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 14, // 14px для заголовка tooltip
+                        weight: '600' // SemiBold
+                    },
+                    bodyFont: {
+                        size: 12 // 12px для текста tooltip
+                    },
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                const value = context.parsed.y;
+                                const formatted = value.toLocaleString('ru-RU', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                });
+                                label += formatted + ' ₽';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        };
+        
+        // Создаем новый график
+        const ctx = chartCanvas.getContext('2d');
+        window.tableChart = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: chartOptions
+        });
+        
+        // Показываем график
+        chartResultEl.style.display = 'block';
+        console.log(`График построен: тип=${chartType}, меток=${labels.length}, наборов данных=${datasets.length}`);
+        
+        // Сохраняем данные таблицы в глобальной переменной
+        window.currentTableData = tableData;
+        
+        // Убеждаемся, что карточки отображаются
+        const dataCards = document.getElementById('data-cards-container');
+        if (dataCards) {
+            dataCards.style.display = '';
+        }
+    }
+
+    // Функция для получения CSRF токена из cookie (Вариант 2)
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Функция для получения CSRF токена (Вариант 1 - из скрытого поля формы)
+    function getCSRFToken() {
+        // Сначала пробуем получить из скрытого поля формы (самый надежный способ)
+        const csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfTokenInput) {
+            const token = csrfTokenInput.value;
+            if (token && token.length > 0) {
+                console.log('CSRF токен найден в форме, длина:', token.length);
+                return token;
+            }
+        }
+        
+        // Если не нашли в форме, пробуем получить из cookie
+        const cookieToken = getCookie('csrftoken');
+        if (cookieToken) {
+            console.log('CSRF токен найден в cookie, длина:', cookieToken.length);
+            return cookieToken;
+        }
+        
+        // Пробуем получить из meta тега
+        const csrfMeta = document.querySelector('meta[name=csrf-token]');
+        if (csrfMeta) {
+            const token = csrfMeta.getAttribute('content');
+            if (token && token.length > 0) {
+                console.log('CSRF токен найден в meta, длина:', token.length);
+                return token;
+            }
+        }
+        
+        console.error('CSRF токен не найден!');
+        console.log('Проверка элементов:', {
+            input: document.querySelector('[name=csrfmiddlewaretoken]'),
+            meta: document.querySelector('meta[name=csrf-token]'),
+            cookies: document.cookie
+        });
+        return null;
+    }
+</script>
+{% endblock %}
+
+
+
+

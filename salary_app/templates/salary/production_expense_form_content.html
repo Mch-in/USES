@@ -1,0 +1,15 @@
+{% load widget_tweaks %}
+<div class="page-font-small">
+    <form method="post" id="addExpenseForm" action="{% url 'production_expense_create' %}">
+        {% csrf_token %}
+        
+        {% with add_button_class="btn btn-success open-child-modal" is_modal=True is_page=False %}
+            {% include "salary/_production_expense_form_fields.html" %}
+        {% endwith %}
+
+        <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Отмена</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+        </div>
+    </form>
+</div>

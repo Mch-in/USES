@@ -1,0 +1,15 @@
+{% extends "salary/index.html" %}
+{% load custom_filters %}
+{% now "U" as now %}
+{% load static %}
+{% load widget_tweaks %}
+
+
+
+{% block body %}
+<div class="container mt-5" style="max-width: 500px;">
+    <h4 class="mb-4 text-center">Регистрация</h4>
+    {% include 'salary/register_form_content.html' with is_modal=False action_url=request.get_full_path %}
+
+</div>
+{% endblock %}
