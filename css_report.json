@@ -1,0 +1,537 @@
+{
+  "duplicates": [
+    {
+      "selector": "[data-theme=\"light\"] .mobile-nav-header",
+      "count": 2
+    },
+    {
+      "selector": ".app-wrapper",
+      "count": 2
+    },
+    {
+      "selector": ".sidebar",
+      "count": 3
+    },
+    {
+      "selector": "html.sidebar-collapsed .sidebar",
+      "count": 3
+    },
+    {
+      "selector": ".sidebar-link",
+      "count": 2
+    },
+    {
+      "selector": "html.sidebar-collapsed .sidebar .language-toggle-btn .language-toggle-code",
+      "count": 2
+    },
+    {
+      "selector": ".theme-toggle-btn .theme-toggle-label",
+      "count": 2
+    },
+    {
+      "selector": ".language-toggle-btn .language-toggle-label",
+      "count": 2
+    },
+    {
+      "selector": ".language-toggle-btn .language-toggle-code",
+      "count": 3
+    },
+    {
+      "selector": ".sidebar-controls-row",
+      "count": 2
+    },
+    {
+      "selector": ".main-content",
+      "count": 3
+    },
+    {
+      "selector": "html.sidebar-collapsed .main-content",
+      "count": 2
+    },
+    {
+      "selector": ".content-window",
+      "count": 4
+    },
+    {
+      "selector": ".mobile-nav",
+      "count": 4
+    },
+    {
+      "selector": ".mobile-nav-link",
+      "count": 2
+    },
+    {
+      "selector": ".modal.show",
+      "count": 2
+    },
+    {
+      "selector": ".modal-content",
+      "count": 5
+    },
+    {
+      "selector": ".modal-body",
+      "count": 4
+    },
+    {
+      "selector": ".modal-header",
+      "count": 3
+    },
+    {
+      "selector": ".modal-header-custom",
+      "count": 3
+    },
+    {
+      "selector": ".modal-header-child",
+      "count": 3
+    },
+    {
+      "selector": ".modal-title",
+      "count": 2
+    },
+    {
+      "selector": "}\n\n\n@media (min-width: 577px) and (max-width: 768px)",
+      "count": 2
+    },
+    {
+      "selector": "#analysis-question",
+      "count": 2
+    },
+    {
+      "selector": "70%",
+      "count": 4
+    },
+    {
+      "selector": "100%",
+      "count": 4
+    },
+    {
+      "selector": "#analysis-result",
+      "count": 2
+    },
+    {
+      "selector": "to",
+      "count": 2
+    },
+    {
+      "selector": "#search-section",
+      "count": 2
+    },
+    {
+      "selector": "#response-divider",
+      "count": 2
+    },
+    {
+      "selector": "#clear-btn",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .card-body",
+      "count": 2
+    },
+    {
+      "selector": ".table-responsive",
+      "count": 2
+    },
+    {
+      "selector": ".kpi-cards-container",
+      "count": 7
+    },
+    {
+      "selector": ".kpi-card",
+      "count": 4
+    },
+    {
+      "selector": ".kpi-card-value",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table-responsive",
+      "count": 4
+    },
+    {
+      "selector": ".sales-report-card .table tbody tr.table-month-summary:not(.expanded-row):nth-child(odd) td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table tbody tr.table-month-summary:not(.expanded-row):nth-child(even) td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table tbody tr.table-month-summary.expanded-row:nth-child(odd) td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table tbody tr.table-month-summary.expanded-row:nth-child(even) td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table th",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .table th.text-end",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-title",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .users-list-table tbody td:nth-child(2)",
+      "count": 3
+    },
+    {
+      "selector": ".sales-report-card .users-list-table tbody td:nth-child(3)",
+      "count": 3
+    },
+    {
+      "selector": ".sales-data-table",
+      "count": 2
+    },
+    {
+      "selector": ".table-month-summary > td",
+      "count": 2
+    },
+    {
+      "selector": ".month-name",
+      "count": 2
+    },
+    {
+      "selector": ".month-total-value",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table .table",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table .equal-width-table",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .floating-table .table",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table thead th",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table .equal-width-table thead th",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .floating-table thead th",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table tbody td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table .equal-width-table tbody td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .floating-table tbody td",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .scrollable-table tbody td.comment-cell",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .month-details-wrapper .floating-table tbody td.comment-cell",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table thead th:first-child",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table tbody td:first-child",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(2)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(2)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(3)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(3)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(4)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(4)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(5)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(5)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(6)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(6)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th:nth-child(7)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td:nth-child(7)",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table thead th",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td",
+      "count": 5
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-id",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-manager",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-company",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-account",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-date",
+      "count": 3
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-amount",
+      "count": 2
+    },
+    {
+      "selector": ".sales-details-table tbody td.sale-salary",
+      "count": 2
+    },
+    {
+      "selector": ".filter-section",
+      "count": 8
+    },
+    {
+      "selector": ".filter-section .row",
+      "count": 5
+    },
+    {
+      "selector": ".filter-section .row > *",
+      "count": 3
+    },
+    {
+      "selector": ".filter-field-wrapper",
+      "count": 4
+    },
+    {
+      "selector": ".filter-actions-wrapper",
+      "count": 6
+    },
+    {
+      "selector": ".filter-actions-wrapper .filter-actions",
+      "count": 3
+    },
+    {
+      "selector": ".filter-actions .btn",
+      "count": 4
+    },
+    {
+      "selector": ".filter-toggle-btn",
+      "count": 2
+    },
+    {
+      "selector": ".filter-actions",
+      "count": 5
+    },
+    {
+      "selector": ".card",
+      "count": 2
+    },
+    {
+      "selector": ".charts-card",
+      "count": 2
+    },
+    {
+      "selector": "body:has(.login-page-wrapper)",
+      "count": 2
+    },
+    {
+      "selector": "html[data-theme=\"dark\"] body:has(.login-page-wrapper)",
+      "count": 2
+    },
+    {
+      "selector": ".login-page-wrapper",
+      "count": 2
+    },
+    {
+      "selector": ".table-wrapper",
+      "count": 2
+    },
+    {
+      "selector": ".table-wrapper table",
+      "count": 3
+    },
+    {
+      "selector": ".card-body .table-responsive",
+      "count": 3
+    },
+    {
+      "selector": ".chart-container",
+      "count": 5
+    },
+    {
+      "selector": ".charts-card .chart-container",
+      "count": 4
+    },
+    {
+      "selector": ".chart-scroll-wrapper .chart-inner",
+      "count": 2
+    },
+    {
+      "selector": ".content-window .container",
+      "count": 3
+    },
+    {
+      "selector": ".table-responsive table",
+      "count": 2
+    },
+    {
+      "selector": ".month-details-wrapper .table-responsive",
+      "count": 2
+    },
+    {
+      "selector": ".month-details-wrapper .scrollable-table",
+      "count": 2
+    },
+    {
+      "selector": ".month-details-wrapper .floating-table",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .card-header",
+      "count": 2
+    },
+    {
+      "selector": ".sales-report-card .card-header .d-flex",
+      "count": 2
+    },
+    {
+      "selector": "}\n\n\n@media (min-width: 769px) and (max-width: 992px)",
+      "count": 2
+    },
+    {
+      "selector": "50%",
+      "count": 2
+    },
+    {
+      "selector": ".tooltip-inner",
+      "count": 2
+    },
+    {
+      "selector": ".ai-chat-messages",
+      "count": 2
+    },
+    {
+      "selector": ".ai-chat-message-content",
+      "count": 2
+    },
+    {
+      "selector": ".ai-chat-input-container",
+      "count": 2
+    },
+    {
+      "selector": ".ai-chat-input-actions .ai-chat-send-btn",
+      "count": 2
+    },
+    {
+      "selector": ".ai-chat-input-actions .ai-chat-clear-btn",
+      "count": 2
+    },
+    {
+      "selector": ".input-group:focus-within .toggle-password",
+      "count": 2
+    },
+    {
+      "selector": "[data-theme=\"light\"] .input-group:focus-within .form-control",
+      "count": 2
+    },
+    {
+      "selector": "[data-theme=\"light\"] .input-group:focus-within .toggle-password",
+      "count": 2
+    }
+  ],
+  "unused": [
+    "ai-analysis-page",
+    "ai-chat-clear-btn",
+    "ai-dialog-container",
+    "ai-main-content",
+    "ai-status-error",
+    "ai-status-ready",
+    "ai-status-warning",
+    "bs-tooltip-bottom",
+    "bs-tooltip-end",
+    "bs-tooltip-start",
+    "bs-tooltip-top",
+    "btn-custom-orange",
+    "btn-group",
+    "btn-outline-primary",
+    "btn-outline-success",
+    "chart-container",
+    "code-content",
+    "col-lg-3",
+    "col-md-12",
+    "dropdown",
+    "dropdown-divider",
+    "dropdown-item",
+    "dropdown-menu",
+    "filter-actions-wrapper",
+    "flex-column",
+    "flex-grow-1",
+    "input-group-text",
+    "modal-backdrop",
+    "modal-open",
+    "month-label",
+    "navbar",
+    "table-wrapper",
+    "tooltip-arrow",
+    "tooltip-inner",
+    "upload-btn"
+  ]
+}
