@@ -4,10 +4,12 @@ from . import ai_views
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
+from django.views.i18n import set_language
 
 urlpatterns = [
     path("", views.sales_list, name='sales_list'),
     path("index/", views.index, name="index"),
+    path("api/import/status/", views.import_status, name="import_status"),
     path('salary_payments/', views.salary_payment_list, name='salary_payment_list'),
     path('production/', views.production_expense_list, name='production_expense_list'),
     path('production/new/', views.production_expense_create, name='production_expense_create'),
@@ -24,10 +26,15 @@ urlpatterns = [
     path('users/', views.users_list, name='users_list'),
     path('users/delete/<int:manager_id>/', views.delete_user_account, name='delete_user_account'),
     path('users/add/<int:manager_id>/', views.register_with_manager, name='register_with_manager'),
-    # ✅ Новый маршрут
+    # Language switch
+    path('set-language/', set_language, name='set_language'),
+    # Remaining salary (AJAX)
     path('get-remaining-salary/', views.get_remaining_salary, name='get_remaining_salary'),
-    # AI Analysis routes
+    # AI Analysis routes - ChatGPT API
     path('ai-analysis/', ai_views.ai_analysis_view, name='ai_analysis'),
+    path('ai-analysis/history/', ai_views.ai_analysis_history, name='ai_analysis_history'),
+    path('api/ai/history/<int:entry_id>/', ai_views.ai_get_history_entry, name='ai_get_history_entry'),
+    path('api/ai/history/<int:entry_id>/delete/', ai_views.ai_delete_history_entry, name='ai_delete_history_entry'),
     path('api/ai/analyze/', ai_views.ai_analyze_data, name='ai_analyze_data'),
     path('api/ai/generate-chart/', ai_views.ai_generate_chart, name='ai_generate_chart'),
     path('api/ai/generate-insights/', ai_views.ai_generate_insights, name='ai_generate_insights'),

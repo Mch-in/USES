@@ -1,0 +1,2139 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-01 15:17+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Sales"
+msgstr ""
+
+msgid "Deals"
+msgstr "Deals"
+
+msgid "Manager"
+msgstr ""
+
+#, python-format
+msgid "Internal server error: %(error)s"
+msgstr ""
+
+#, python-format
+msgid "Error while getting data: %(error)s"
+msgstr ""
+
+#, python-format
+msgid "Error while initializing LLM service: %(error)s"
+msgstr ""
+
+msgid ""
+"Could not connect to ChatGPT API. Check OPENAI_API_KEY settings and Internet "
+"availability."
+msgstr ""
+
+#, python-format
+msgid "Error while analyzing data: %(error)s"
+msgstr ""
+
+#, python-format
+msgid "Unexpected error: %(error)s"
+msgstr ""
+
+msgid "Invalid JSON format in request"
+msgstr ""
+
+msgid "Table data was not provided"
+msgstr ""
+
+msgid "Failed to generate insights. Please try again."
+msgstr ""
+
+#, python-format
+msgid "Error while generating insights: %(error)s"
+msgstr ""
+
+#, python-format
+msgid "Error while generating chart: %(error)s"
+msgstr ""
+
+msgid "User not found"
+msgstr ""
+
+msgid "Entry not found"
+msgstr ""
+
+msgid "Entry has been deleted successfully."
+msgstr ""
+
+msgid ""
+"ChatGPT is not configured. Set OPENAI_API_KEY in the environment (.env file)."
+msgstr ""
+
+msgid "Could not initialize ChatGPT. Check OPENAI_API_KEY settings."
+msgstr ""
+
+msgid "ChatGPT client is not initialized. Check OPENAI_API_KEY settings."
+msgstr ""
+
+msgid "ChatGPT is ready."
+msgstr ""
+
+msgid "Invalid API key. Check OPENAI_API_KEY settings."
+msgstr ""
+
+msgid "Rate limit exceeded for ChatGPT API. Please try again later."
+msgstr ""
+
+msgid "Could not connect to ChatGPT API. Check Internet availability."
+msgstr ""
+
+#, python-format
+msgid "Error while checking ChatGPT: %(error)s"
+msgstr ""
+
+#, python-format
+msgid "Error: %(error)s"
+msgstr ""
+
+msgid "No company"
+msgstr ""
+
+msgid "You do not have permission to access this page."
+msgstr ""
+
+#, fuzzy
+#| msgid "Employee:"
+msgid "Employee from CRM"
+msgstr "Employee:"
+
+msgid "Select the employee for whom the account is being created."
+msgstr ""
+
+msgid "Make admin"
+msgstr ""
+
+msgid "Payment amount"
+msgstr ""
+
+msgid "Payment date and time"
+msgstr ""
+
+#, fuzzy
+#| msgid "- Total payout amount"
+msgid "Enter payment amount."
+msgstr "- Total payout amount"
+
+msgid "Enter a valid decimal number."
+msgstr ""
+
+msgid "Employee name"
+msgstr ""
+
+msgid "Expense type name"
+msgstr ""
+
+msgid "Employee"
+msgstr ""
+
+msgid "Expense type"
+msgstr ""
+
+msgid "Amount"
+msgstr ""
+
+msgid "Expense date"
+msgstr ""
+
+msgid "Comment"
+msgstr ""
+
+msgid "Enter amount."
+msgstr ""
+
+msgid "By month"
+msgstr ""
+
+msgid "By date range"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Reset"
+msgstr ""
+
+msgid "Home"
+msgstr ""
+
+msgid "Expenses"
+msgstr ""
+
+msgid "Salary"
+msgstr ""
+
+msgid "AI request log"
+msgstr ""
+
+msgid "AI log"
+msgstr ""
+
+msgid "Payment confirmation"
+msgstr "Payment confirmation"
+
+msgid "Employee:"
+msgstr "Employee:"
+
+msgid "Expense type:"
+msgstr "Expense type:"
+
+msgid "Date:"
+msgstr "Date:"
+
+msgid "Amount:"
+msgstr "Amount:"
+
+msgid "Comment:"
+msgstr "Comment:"
+
+msgid "Employee signature"
+msgstr "Employee signature"
+
+#, fuzzy
+#| msgid "Employee:"
+msgid "New employee"
+msgstr "Employee:"
+
+msgid "Add new employee"
+msgstr ""
+
+#, fuzzy
+#| msgid "Expense type:"
+msgid "New expense type"
+msgstr "Expense type:"
+
+#, fuzzy
+#| msgid "Expense type:"
+msgid "Add new expense type"
+msgstr "Expense type:"
+
+msgid "Enter amount"
+msgstr ""
+
+msgid "ChatGPT status:"
+msgstr ""
+
+msgid "Checking..."
+msgstr ""
+
+msgid "Model:"
+msgstr ""
+
+msgid "Enter your question..."
+msgstr ""
+
+msgid "Send"
+msgstr ""
+
+msgid "Tokens: -"
+msgstr ""
+
+msgid "Data chart"
+msgstr ""
+
+msgid "Data table"
+msgstr ""
+
+msgid "Ready"
+msgstr ""
+
+msgid "Not configured"
+msgstr ""
+
+msgid "Error:"
+msgstr ""
+
+msgid "Unknown status"
+msgstr ""
+
+msgid "Connection error"
+msgstr ""
+
+msgid "You"
+msgstr ""
+
+msgid "Analysis in progress..."
+msgstr ""
+
+msgid "Analysis complete."
+msgstr ""
+
+msgid "Analysis complete. No data."
+msgstr ""
+
+msgid "Gathering information..."
+msgstr ""
+
+msgid "No data."
+msgstr ""
+
+msgid "Unknown error"
+msgstr ""
+
+msgid "Error while executing request"
+msgstr ""
+
+msgid "An error occurred while running the analysis"
+msgstr ""
+
+msgid "Please enter a question for analysis"
+msgstr ""
+
+#, python-brace-format
+msgid "Tokens: {total} (prompt: {prompt}, completion: {completion})"
+msgstr ""
+
+msgid "Comparison chart"
+msgstr ""
+
+msgid "Monthly totals (all managers, from table above)"
+msgstr ""
+
+msgid "Top managers by sales (sum over period, from table)"
+msgstr ""
+
+msgid "Sales by manager and month (top managers, same data)"
+msgstr ""
+
+msgid "Built from the table above — same numbers."
+msgstr ""
+
+msgid "Companies: amount and deal count (from table)"
+msgstr ""
+
+msgid "Category"
+msgstr ""
+
+msgid "Salary payments"
+msgstr ""
+
+msgid "Total amount"
+msgstr ""
+
+msgid "Record count"
+msgstr ""
+
+msgid "Average amount"
+msgstr ""
+
+msgid "Max amount"
+msgstr ""
+
+msgid "Date and time"
+msgstr ""
+
+msgid "Question"
+msgstr ""
+
+msgid "Tokens"
+msgstr ""
+
+msgid "Actions"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "tokens"
+msgstr ""
+
+msgid "Question:"
+msgstr ""
+
+msgid "Page navigation"
+msgstr ""
+
+msgid "First"
+msgstr ""
+
+msgid "Previous"
+msgstr ""
+
+msgid "Page"
+msgstr ""
+
+#, fuzzy, python-format
+#| msgid "из %(total)s"
+msgid "of %(total)s"
+msgstr "of %(total)s"
+
+msgid "Next"
+msgstr ""
+
+msgid "Last"
+msgstr ""
+
+msgid "The log is empty. Your requests and responses will be saved here."
+msgstr ""
+
+msgid "Go to AI"
+msgstr ""
+
+msgid "Request details"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Date and time:"
+msgstr ""
+
+msgid "Dialogue:"
+msgstr ""
+
+msgid "Answer:"
+msgstr ""
+
+msgid "Data table:"
+msgstr ""
+
+msgid "Token usage:"
+msgstr ""
+
+msgid "Continue conversation"
+msgstr ""
+
+msgid "AI"
+msgstr ""
+
+msgid "Analysis complete (data hidden)."
+msgstr ""
+
+msgid "Prompt"
+msgstr ""
+
+msgid "Response"
+msgstr ""
+
+msgid "Error loading data:"
+msgstr ""
+
+msgid "Error loading data"
+msgstr ""
+
+msgid "Are you sure you want to delete this entry? This cannot be undone."
+msgstr ""
+
+msgid "Error deleting:"
+msgstr ""
+
+msgid "Error deleting entry"
+msgstr ""
+
+msgid "Sales update operation"
+msgstr ""
+
+msgid "Return to sales list"
+msgstr ""
+
+msgid "Menu"
+msgstr ""
+
+msgid "Light theme"
+msgstr ""
+
+msgid "Dark theme"
+msgstr ""
+
+#, fuzzy
+#| msgid "Log in"
+msgid "Log out"
+msgstr "Log in"
+
+msgid "Switch theme"
+msgstr ""
+
+msgid "Change language"
+msgstr ""
+
+msgid "Log in"
+msgstr "Log in"
+
+msgid "Incorrect username or password."
+msgstr "Incorrect username or password."
+
+msgid "Username"
+msgstr "Username"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Sign in"
+msgstr "Sign in"
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Сотрудник"
+msgstr "Employee"
+
+msgid "Все"
+msgstr "All"
+
+msgid "Вид расходов"
+msgstr "Expense type"
+
+msgid "Список расходов"
+msgstr "Expense list"
+
+msgid "Скачать отфильтрованный список в формате Excel"
+msgstr "Download filtered list as Excel"
+
+msgid "Сохранить в Excel"
+msgstr "Save to Excel"
+
+msgid "Add expense"
+msgstr ""
+
+msgid "Дата"
+msgstr "Date"
+
+msgid "Сумма"
+msgstr "Amount"
+
+msgid "Комментарий"
+msgstr "Comment"
+
+msgid "Редактировать расход"
+msgstr "Edit expense"
+
+msgid "Печать"
+msgstr "Print"
+
+msgid "Нет данных для отображения"
+msgstr "No data to display"
+
+msgid "Попробуйте изменить фильтры."
+msgstr "Try changing filters."
+
+#, python-format
+msgid "Итого: %(total)s ₴"
+msgstr "Total: %(total)s ₴"
+
+msgid "Edit expense"
+msgstr ""
+
+msgid "Registration"
+msgstr ""
+
+msgid "Password confirmation"
+msgstr ""
+
+msgid "Register"
+msgstr ""
+
+msgid "Remaining salary"
+msgstr ""
+
+msgid "Salary report"
+msgstr ""
+
+msgid "Download filtered list as Excel"
+msgstr ""
+
+msgid "Save to Excel"
+msgstr ""
+
+msgid "Add payment"
+msgstr ""
+
+msgid "Payment date"
+msgstr ""
+
+msgid "Edit payment"
+msgstr ""
+
+msgid "Print"
+msgstr ""
+
+msgid "Salary payment"
+msgstr ""
+
+msgid "No data to display"
+msgstr ""
+
+msgid "Try changing the filters."
+msgstr ""
+
+#, python-format
+msgid "Total paid: %(total)s ₴"
+msgstr ""
+
+msgid "Reason:"
+msgstr ""
+
+msgid "Loading data…"
+msgstr ""
+
+msgid "Load new deals from CRM24"
+msgstr ""
+
+msgid "Load"
+msgstr ""
+
+msgid "Loading…"
+msgstr ""
+
+msgid "Total sales"
+msgstr ""
+
+msgid "for the selected period"
+msgstr ""
+
+msgid "Payments (salaries)"
+msgstr ""
+
+#, python-format
+msgid "paid out of %(total)s ₴"
+msgstr ""
+
+msgid "Salary remaining"
+msgstr ""
+
+msgid "to be paid"
+msgstr ""
+
+msgid "Sales by managers"
+msgstr ""
+
+msgid "Expense types"
+msgstr ""
+
+msgid "Bar chart"
+msgstr ""
+
+msgid "Pie chart"
+msgstr ""
+
+msgid "Sales report"
+msgstr ""
+
+msgctxt "ai_grounded"
+msgid "### Analysis"
+msgstr ""
+
+msgid "Only facts from the monthly table."
+msgstr ""
+
+#, python-format
+msgid "- Table period: **%(first)s** through **%(last)s** (%(months)s)."
+msgstr ""
+
+#, python-format
+msgid "- **%(month)s**: total sales **%(total)s**, deals **%(deals)s**"
+msgstr ""
+
+#, python-format
+msgid ", average deal **%(avg)s**"
+msgstr ""
+
+#, python-format
+msgid ", largest deal **%(mx)s**"
+msgstr ""
+
+#, python-format
+msgid "- Total sales change (**%(last)s** vs **%(first)s**): **%(pct)s**."
+msgstr ""
+
+#, python-format
+msgid "- Deals count change (**%(last)s** vs **%(first)s**): **%(pct)s**."
+msgstr ""
+
+#, python-format
+msgid "- Highest monthly sales in the table: **%(month)s** — **%(total)s**."
+msgstr ""
+
+#, python-format
+msgid "- Lowest monthly sales in the table: **%(month)s** — **%(total)s**."
+msgstr ""
+
+msgctxt "ai_grounded"
+msgid "Only facts from the table."
+msgstr ""
+
+#, python-format
+msgid "- **%(month)s**: total sales amount is **%(total)s**, deals are **%(deals)s**"
+msgstr ""
+
+#, python-format
+msgid ", average deal is **%(avg)s**"
+msgstr ""
+
+#, python-format
+msgid ", maximum deal is **%(mx)s**"
+msgstr ""
+
+#, python-format
+msgid "- Largest expense type: **%(name)s** — **%(amount)s**."
+msgstr ""
+
+#, python-format
+msgid "- **%(name)s**: **%(amount)s**."
+msgstr ""
+
+msgid ""
+"Your reply had no ```python``` block setting `result`. Repeat: FIRST only "
+"```python``` (assign result = list of dicts from sales_queryset / ORM), then "
+"at most 3 sentences with names and amounts from result. Do not start with an "
+"\"Analysis:\" paragraph before the code."
+msgstr ""
+
+msgid ""
+"Your code ran but `result` stayed empty (0 table rows). Send again: start "
+"with one ```python``` block where result is a non-empty list of dicts from "
+"the DB. Fill result in a loop with result.append(...) or a list comprehension. "
+"Use sales_queryset and closing_date for month/year filters. Do not truncate "
+"before result is filled."
+msgstr ""
+
+#, python-format
+msgid ""
+"Your code failed with a runtime error. Error: %(error)s. Send again only one "
+"valid ```python``` block with no undefined variables. Use sales_queryset and "
+"build result as a list of dicts."
+msgstr ""
+
+msgid "Only facts from the manager table and company slice (same CRM filters as the table)."
+msgstr ""
+
+#, python-format
+msgid "- Table period: from **%(first)s** to **%(last)s** (%(months)s)."
+msgstr ""
+
+#, python-format
+msgid ""
+"- **%(month)s**: sales — **%(sales)s**, deals — **%(deals)s**; top manager — "
+"**%(top_name)s** (**%(top_val)s**)."
+msgstr ""
+
+#, python-format
+msgid "- **Month-over-month (total sales, all managers):** %(chain)s."
+msgstr ""
+
+#, python-format
+msgid "- **Month-over-month (deal counts):** %(chain)s."
+msgstr ""
+
+#, python-format
+msgid ""
+"- **Peak vs trough (all managers):** highest — **%(best_m)s** (**%(peak)s**), "
+"lowest — **%(worst_m)s** (**%(trough)s**); gap **%(gap)s** (**%(gap_pct)s** "
+"from peak to lowest month)."
+msgstr ""
+
+#, python-format
+msgid "- **Per-month averages:** sales **%(avg_sales)s**, deals **%(avg_deals)s**."
+msgstr ""
+
+#, python-format
+msgid ""
+"- **Largest month-to-month spread (max−min per manager row):** %(details)s."
+msgstr ""
+
+#, python-format
+msgid "- **Times each manager was #1 by sales in a month:** %(details)s."
+msgstr ""
+
+#, python-format
+msgid ""
+"- **Interval endpoints only (%(first)s vs %(last)s), not the full trend:** "
+"sales **%(pct_tot)s**, deals **%(pct_deal)s**."
+msgstr ""
+
+msgid "- **Top companies by revenue per month (up to 5, from CRM):**"
+msgstr ""
+
+#, python-format
+msgid "**%(title)s** — %(sales)s (%(deals)d deals)"
+msgstr ""
+
+#, python-format
+msgid "  - **%(month_label)s:** %(parts)s."
+msgstr ""
+
+msgid "Only facts from the manager table."
+msgstr ""
+
+#, python-format
+msgid "- Total sales: **%(m0)s** — **%(t0)s**, **%(m1)s** — **%(t1)s**."
+msgstr ""
+
+#, python-format
+msgid "- Deals: **%(m0)s** — **%(d0)s**, **%(m1)s** — **%(d1)s**."
+msgstr ""
+
+#, python-format
+msgid "- Sales amount change (%(m1)s vs %(m0)s): **%(pct)s**."
+msgstr ""
+
+#, python-format
+msgid "- Deals count change (%(m1)s vs %(m0)s): **%(pct)s**."
+msgstr ""
+
+#, python-format
+msgid "- Top performer in **%(m)s**: **%(name)s** (**%(val)s**)."
+msgstr ""
+
+msgid "Period 1"
+msgstr ""
+
+msgid "Period 2"
+msgstr ""
+
+#, python-format
+msgid ""
+"- **%(month)s**: total sales amount is **%(total)s**, deals are **%(deals)s**; "
+"top manager by sales is **%(leader)s** (**%(leader_total)s**)."
+msgstr ""
+
+#, python-format
+msgid "- Total sales difference (**%(b)s** vs **%(a)s**) is **%(delta)s**."
+msgstr ""
+
+msgid ""
+"Only facts from the table (salary payouts and expenses for the selected "
+"period/year)."
+msgstr ""
+
+#, python-format
+msgid ""
+"- **%(cat)s**: total **%(tot)s**, records **%(rec)s**, average **%(avg)s**, max "
+"**%(mx)s**."
+msgstr ""
+
+msgid "Here is the data found for your request:"
+msgstr ""
+
+msgid "Period"
+msgstr ""
+
+msgid "ID"
+msgstr ""
+
+msgid "Company"
+msgstr ""
+
+msgid "Invoice"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "Try changing filters or refreshing sales."
+msgstr ""
+
+msgid "User list"
+msgstr ""
+
+msgid "Last name"
+msgstr ""
+
+msgid "First name"
+msgstr ""
+
+msgid "Login"
+msgstr ""
+
+msgid "Admin"
+msgstr ""
+
+msgid "Are you sure you want to delete this user?"
+msgstr ""
+
+msgid "No users to display"
+msgstr ""
+
+msgid "Январь"
+msgstr "January"
+
+msgid "Февраль"
+msgstr "February"
+
+msgid "Март"
+msgstr "March"
+
+msgid "Апрель"
+msgstr "April"
+
+msgid "Май"
+msgstr "May"
+
+msgid "Июнь"
+msgstr "June"
+
+msgid "Июль"
+msgstr "July"
+
+msgid "Август"
+msgstr "August"
+
+msgid "Сентябрь"
+msgstr "September"
+
+msgid "Октябрь"
+msgstr "October"
+
+msgid "Ноябрь"
+msgstr "November"
+
+msgid "Декабрь"
+msgstr "December"
+
+msgid "Method not allowed"
+msgstr ""
+
+msgid "Method not allowed. Return to the sales page and click 'Load'."
+msgstr ""
+
+msgid "Import is already running by another user. Please try again later."
+msgstr ""
+
+msgid "Preparing…"
+msgstr ""
+
+msgid "Loading users…"
+msgstr ""
+
+msgid "Loading companies…"
+msgstr ""
+
+msgid "Loading deals…"
+msgstr ""
+
+#, python-format
+msgid "Loading deals… (page %s)"
+msgstr ""
+
+#, python-format
+msgid "Loading deals… (retry %s/%s)"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+#, python-format
+msgid "Update completed. %(count)s new deals have been added."
+msgstr ""
+
+msgid ""
+"Failed to update sales. Please check integration settings and try again."
+msgstr ""
+
+msgid "Payments"
+msgstr ""
+
+msgid "Expense has been added successfully."
+msgstr ""
+
+#, python-format
+msgid "Edit payment #%(pk)s"
+msgstr ""
+
+msgid "Expense has been updated successfully."
+msgstr ""
+
+#, python-format
+msgid "Edit expense #%(pk)s"
+msgstr ""
+
+msgid "Production expenses"
+msgstr ""
+
+#, python-format
+msgid "Employee '%(name)s' has been added successfully."
+msgstr ""
+
+msgid "Add employee"
+msgstr ""
+
+#, python-format
+msgid "Expense type '%(name)s' has been added successfully."
+msgstr ""
+
+msgid "Add expense type"
+msgstr ""
+
+msgid "User has been registered successfully."
+msgstr ""
+
+#, python-format
+msgid "Login and password have been removed for user %(last)s %(first)s."
+msgstr ""
+
+msgid "This manager does not have a registered user."
+msgstr ""
+
+msgid "Messages"
+msgstr ""
+
+msgid "Site Maps"
+msgstr ""
+
+msgid "Static Files"
+msgstr ""
+
+msgid "Syndication"
+msgstr ""
+
+#. Translators: String used to replace omitted page numbers in elided page
+#. range generated by paginators, e.g. [1, 2, '…', 5, 6, 7, '…', 9, 10].
+msgid "…"
+msgstr ""
+
+msgid "That page number is not an integer"
+msgstr ""
+
+msgid "That page number is less than 1"
+msgstr ""
+
+msgid "That page contains no results"
+msgstr ""
+
+msgid "Enter a valid value."
+msgstr ""
+
+msgid "Enter a valid domain name."
+msgstr ""
+
+msgid "Enter a valid URL."
+msgstr ""
+
+msgid "Enter a valid integer."
+msgstr ""
+
+msgid "Enter a valid email address."
+msgstr ""
+
+#. Translators: "letters" means latin letters: a-z and A-Z.
+msgid ""
+"Enter a valid “slug” consisting of letters, numbers, underscores or hyphens."
+msgstr ""
+
+msgid ""
+"Enter a valid “slug” consisting of Unicode letters, numbers, underscores, or "
+"hyphens."
+msgstr ""
+
+#, python-format
+msgid "Enter a valid %(protocol)s address."
+msgstr ""
+
+msgid "IPv4"
+msgstr ""
+
+msgid "IPv6"
+msgstr ""
+
+msgid "IPv4 or IPv6"
+msgstr ""
+
+msgid "Enter only digits separated by commas."
+msgstr ""
+
+#, python-format
+msgid "Ensure this value is %(limit_value)s (it is %(show_value)s)."
+msgstr ""
+
+#, python-format
+msgid "Ensure this value is less than or equal to %(limit_value)s."
+msgstr ""
+
+#, python-format
+msgid "Ensure this value is greater than or equal to %(limit_value)s."
+msgstr ""
+
+#, python-format
+msgid "Ensure this value is a multiple of step size %(limit_value)s."
+msgstr ""
+
+#, python-format
+msgid ""
+"Ensure this value is a multiple of step size %(limit_value)s, starting from "
+"%(offset)s, e.g. %(offset)s, %(valid_value1)s, %(valid_value2)s, and so on."
+msgstr ""
+
+#, python-format
+msgid ""
+"Ensure this value has at least %(limit_value)d character (it has "
+"%(show_value)d)."
+msgid_plural ""
+"Ensure this value has at least %(limit_value)d characters (it has "
+"%(show_value)d)."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid ""
+"Ensure this value has at most %(limit_value)d character (it has "
+"%(show_value)d)."
+msgid_plural ""
+"Ensure this value has at most %(limit_value)d characters (it has "
+"%(show_value)d)."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Enter a number."
+msgstr ""
+
+#, python-format
+msgid "Ensure that there are no more than %(max)s digit in total."
+msgid_plural "Ensure that there are no more than %(max)s digits in total."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "Ensure that there are no more than %(max)s decimal place."
+msgid_plural "Ensure that there are no more than %(max)s decimal places."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid ""
+"Ensure that there are no more than %(max)s digit before the decimal point."
+msgid_plural ""
+"Ensure that there are no more than %(max)s digits before the decimal point."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid ""
+"File extension “%(extension)s” is not allowed. Allowed extensions are: "
+"%(allowed_extensions)s."
+msgstr ""
+
+msgid "Null characters are not allowed."
+msgstr ""
+
+msgid "and"
+msgstr ""
+
+#, python-format
+msgid "%(model_name)s with this %(field_labels)s already exists."
+msgstr ""
+
+#, python-format
+msgid "Constraint “%(name)s” is violated."
+msgstr ""
+
+#, python-format
+msgid "Value %(value)r is not a valid choice."
+msgstr ""
+
+msgid "This field cannot be null."
+msgstr ""
+
+msgid "This field cannot be blank."
+msgstr ""
+
+#, python-format
+msgid "%(model_name)s with this %(field_label)s already exists."
+msgstr ""
+
+#. Translators: The 'lookup_type' is one of 'date', 'year' or
+#. 'month'. Eg: "Title must be unique for pub_date year"
+#, python-format
+msgid ""
+"%(field_label)s must be unique for %(date_field_label)s %(lookup_type)s."
+msgstr ""
+
+#, python-format
+msgid "Field of type: %(field_type)s"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be either True or False."
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be either True, False, or None."
+msgstr ""
+
+msgid "Boolean (Either True or False)"
+msgstr ""
+
+#, python-format
+msgid "String (up to %(max_length)s)"
+msgstr ""
+
+msgid "String (unlimited)"
+msgstr ""
+
+msgid "Comma-separated integers"
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has an invalid date format. It must be in YYYY-MM-DD "
+"format."
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has the correct format (YYYY-MM-DD) but it is an invalid "
+"date."
+msgstr ""
+
+msgid "Date (without time)"
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has an invalid format. It must be in YYYY-MM-DD "
+"HH:MM[:ss[.uuuuuu]][TZ] format."
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has the correct format (YYYY-MM-DD HH:MM[:ss[.uuuuuu]]"
+"[TZ]) but it is an invalid date/time."
+msgstr ""
+
+msgid "Date (with time)"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be a decimal number."
+msgstr ""
+
+msgid "Decimal number"
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has an invalid format. It must be in [DD] "
+"[[HH:]MM:]ss[.uuuuuu] format."
+msgstr ""
+
+msgid "Duration"
+msgstr ""
+
+msgid "Email address"
+msgstr ""
+
+msgid "File path"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be a float."
+msgstr ""
+
+msgid "Floating point number"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be an integer."
+msgstr ""
+
+msgid "Integer"
+msgstr ""
+
+msgid "Big (8 byte) integer"
+msgstr ""
+
+msgid "Small integer"
+msgstr ""
+
+msgid "IPv4 address"
+msgstr ""
+
+msgid "IP address"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” value must be either None, True or False."
+msgstr ""
+
+msgid "Boolean (Either True, False or None)"
+msgstr ""
+
+msgid "Positive big integer"
+msgstr ""
+
+msgid "Positive integer"
+msgstr ""
+
+msgid "Positive small integer"
+msgstr ""
+
+#, python-format
+msgid "Slug (up to %(max_length)s)"
+msgstr ""
+
+msgid "Text"
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has an invalid format. It must be in HH:MM[:ss[.uuuuuu]] "
+"format."
+msgstr ""
+
+#, python-format
+msgid ""
+"“%(value)s” value has the correct format (HH:MM[:ss[.uuuuuu]]) but it is an "
+"invalid time."
+msgstr ""
+
+msgid "Time"
+msgstr ""
+
+msgid "URL"
+msgstr ""
+
+msgid "Raw binary data"
+msgstr ""
+
+#, python-format
+msgid "“%(value)s” is not a valid UUID."
+msgstr ""
+
+msgid "Universally unique identifier"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "A JSON object"
+msgstr ""
+
+msgid "Value must be valid JSON."
+msgstr ""
+
+#, python-format
+msgid "%(model)s instance with %(field)s %(value)r is not a valid choice."
+msgstr ""
+
+msgid "Foreign Key (type determined by related field)"
+msgstr ""
+
+msgid "One-to-one relationship"
+msgstr ""
+
+#, python-format
+msgid "%(from)s-%(to)s relationship"
+msgstr ""
+
+#, python-format
+msgid "%(from)s-%(to)s relationships"
+msgstr ""
+
+msgid "Many-to-many relationship"
+msgstr ""
+
+#. Translators: If found as last label character, these punctuation
+#. characters will prevent the default label_suffix to be appended to the label
+msgid ":?.!"
+msgstr ""
+
+msgid "This field is required."
+msgstr ""
+
+msgid "Enter a whole number."
+msgstr ""
+
+msgid "Enter a valid date."
+msgstr ""
+
+msgid "Enter a valid time."
+msgstr ""
+
+msgid "Enter a valid date/time."
+msgstr ""
+
+msgid "Enter a valid duration."
+msgstr ""
+
+#, python-brace-format
+msgid "The number of days must be between {min_days} and {max_days}."
+msgstr ""
+
+msgid "No file was submitted. Check the encoding type on the form."
+msgstr ""
+
+msgid "No file was submitted."
+msgstr ""
+
+msgid "The submitted file is empty."
+msgstr ""
+
+#, python-format
+msgid "Ensure this filename has at most %(max)d character (it has %(length)d)."
+msgid_plural ""
+"Ensure this filename has at most %(max)d characters (it has %(length)d)."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Please either submit a file or check the clear checkbox, not both."
+msgstr ""
+
+msgid ""
+"Upload a valid image. The file you uploaded was either not an image or a "
+"corrupted image."
+msgstr ""
+
+#, python-format
+msgid "Select a valid choice. %(value)s is not one of the available choices."
+msgstr ""
+
+msgid "Enter a list of values."
+msgstr ""
+
+msgid "Enter a complete value."
+msgstr ""
+
+msgid "Enter a valid UUID."
+msgstr ""
+
+msgid "Enter a valid JSON."
+msgstr ""
+
+#. Translators: This is the default suffix added to form field labels
+msgid ":"
+msgstr ""
+
+#, python-format
+msgid "(Hidden field %(name)s) %(error)s"
+msgstr ""
+
+#, python-format
+msgid ""
+"ManagementForm data is missing or has been tampered with. Missing fields: "
+"%(field_names)s. You may need to file a bug report if the issue persists."
+msgstr ""
+
+#, python-format
+msgid "Please submit at most %(num)d form."
+msgid_plural "Please submit at most %(num)d forms."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "Please submit at least %(num)d form."
+msgid_plural "Please submit at least %(num)d forms."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Order"
+msgstr ""
+
+#, python-format
+msgid "Please correct the duplicate data for %(field)s."
+msgstr ""
+
+#, python-format
+msgid "Please correct the duplicate data for %(field)s, which must be unique."
+msgstr ""
+
+#, python-format
+msgid ""
+"Please correct the duplicate data for %(field_name)s which must be unique "
+"for the %(lookup)s in %(date_field)s."
+msgstr ""
+
+msgid "Please correct the duplicate values below."
+msgstr ""
+
+msgid "The inline value did not match the parent instance."
+msgstr ""
+
+msgid "Select a valid choice. That choice is not one of the available choices."
+msgstr ""
+
+#, python-format
+msgid "“%(pk)s” is not a valid value."
+msgstr ""
+
+#, python-format
+msgid ""
+"%(datetime)s couldn’t be interpreted in time zone %(current_timezone)s; it "
+"may be ambiguous or it may not exist."
+msgstr ""
+
+msgid "Clear"
+msgstr ""
+
+msgid "Currently"
+msgstr ""
+
+msgid "Change"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+#. Translators: Please do not add spaces around commas.
+msgid "yes,no,maybe"
+msgstr ""
+
+#, python-format
+msgid "%(size)d byte"
+msgid_plural "%(size)d bytes"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%s KB"
+msgstr ""
+
+#, python-format
+msgid "%s MB"
+msgstr ""
+
+#, python-format
+msgid "%s GB"
+msgstr ""
+
+#, python-format
+msgid "%s TB"
+msgstr ""
+
+#, python-format
+msgid "%s PB"
+msgstr ""
+
+msgid "p.m."
+msgstr ""
+
+msgid "a.m."
+msgstr ""
+
+msgid "PM"
+msgstr ""
+
+msgid "AM"
+msgstr ""
+
+msgid "midnight"
+msgstr ""
+
+msgid "noon"
+msgstr ""
+
+msgid "Monday"
+msgstr ""
+
+msgid "Tuesday"
+msgstr ""
+
+msgid "Wednesday"
+msgstr ""
+
+msgid "Thursday"
+msgstr ""
+
+msgid "Friday"
+msgstr ""
+
+msgid "Saturday"
+msgstr ""
+
+msgid "Sunday"
+msgstr ""
+
+msgid "Mon"
+msgstr ""
+
+msgid "Tue"
+msgstr ""
+
+msgid "Wed"
+msgstr ""
+
+msgid "Thu"
+msgstr ""
+
+msgid "Fri"
+msgstr ""
+
+msgid "Sat"
+msgstr ""
+
+msgid "Sun"
+msgstr ""
+
+msgid "January"
+msgstr ""
+
+msgid "February"
+msgstr ""
+
+msgid "March"
+msgstr ""
+
+msgid "April"
+msgstr ""
+
+msgid "May"
+msgstr ""
+
+msgid "June"
+msgstr ""
+
+msgid "July"
+msgstr ""
+
+msgid "August"
+msgstr ""
+
+msgid "September"
+msgstr ""
+
+msgid "October"
+msgstr ""
+
+msgid "November"
+msgstr ""
+
+msgid "December"
+msgstr ""
+
+msgid "jan"
+msgstr ""
+
+msgid "feb"
+msgstr ""
+
+msgid "mar"
+msgstr ""
+
+msgid "apr"
+msgstr ""
+
+msgid "may"
+msgstr ""
+
+msgid "jun"
+msgstr ""
+
+msgid "jul"
+msgstr ""
+
+msgid "aug"
+msgstr ""
+
+msgid "sep"
+msgstr ""
+
+msgid "oct"
+msgstr ""
+
+msgid "nov"
+msgstr ""
+
+msgid "dec"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Jan."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Feb."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "March"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "April"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "May"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "June"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "July"
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Aug."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Sept."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Oct."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Nov."
+msgstr ""
+
+msgctxt "abbrev. month"
+msgid "Dec."
+msgstr ""
+
+msgctxt "alt. month"
+msgid "January"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "February"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "March"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "April"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "May"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "June"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "July"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "August"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "September"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "October"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "November"
+msgstr ""
+
+msgctxt "alt. month"
+msgid "December"
+msgstr ""
+
+msgid "This is not a valid IPv6 address."
+msgstr ""
+
+#, python-format
+msgctxt "String to return when truncating text"
+msgid "%(truncated_text)s…"
+msgstr ""
+
+msgid "or"
+msgstr ""
+
+#. Translators: This string is used as a separator between list elements
+msgid ", "
+msgstr ""
+
+#, python-format
+msgid "%(num)d year"
+msgid_plural "%(num)d years"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(num)d month"
+msgid_plural "%(num)d months"
+msgstr[0] "%(num)d month"
+msgstr[1] "%(num)d months"
+
+#, python-format
+msgid "%(num)d week"
+msgid_plural "%(num)d weeks"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(num)d day"
+msgid_plural "%(num)d days"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(num)d hour"
+msgid_plural "%(num)d hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(num)d minute"
+msgid_plural "%(num)d minutes"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Forbidden"
+msgstr ""
+
+msgid "CSRF verification failed. Request aborted."
+msgstr ""
+
+msgid ""
+"You are seeing this message because this HTTPS site requires a “Referer "
+"header” to be sent by your web browser, but none was sent. This header is "
+"required for security reasons, to ensure that your browser is not being "
+"hijacked by third parties."
+msgstr ""
+
+msgid ""
+"If you have configured your browser to disable “Referer” headers, please re-"
+"enable them, at least for this site, or for HTTPS connections, or for “same-"
+"origin” requests."
+msgstr ""
+
+msgid ""
+"If you are using the <meta name=\"referrer\" content=\"no-referrer\"> tag or "
+"including the “Referrer-Policy: no-referrer” header, please remove them. The "
+"CSRF protection requires the “Referer” header to do strict referer checking. "
+"If you’re concerned about privacy, use alternatives like <a "
+"rel=\"noreferrer\" …> for links to third-party sites."
+msgstr ""
+
+msgid ""
+"You are seeing this message because this site requires a CSRF cookie when "
+"submitting forms. This cookie is required for security reasons, to ensure "
+"that your browser is not being hijacked by third parties."
+msgstr ""
+
+msgid ""
+"If you have configured your browser to disable cookies, please re-enable "
+"them, at least for this site, or for “same-origin” requests."
+msgstr ""
+
+msgid "More information is available with DEBUG=True."
+msgstr ""
+
+msgid "No year specified"
+msgstr ""
+
+msgid "Date out of range"
+msgstr ""
+
+msgid "No month specified"
+msgstr ""
+
+msgid "No day specified"
+msgstr ""
+
+msgid "No week specified"
+msgstr ""
+
+#, python-format
+msgid "No %(verbose_name_plural)s available"
+msgstr ""
+
+#, python-format
+msgid ""
+"Future %(verbose_name_plural)s not available because "
+"%(class_name)s.allow_future is False."
+msgstr ""
+
+#, python-format
+msgid "Invalid date string “%(datestr)s” given format “%(format)s”"
+msgstr ""
+
+#, python-format
+msgid "No %(verbose_name)s found matching the query"
+msgstr ""
+
+msgid "Page is not “last”, nor can it be converted to an int."
+msgstr ""
+
+#, python-format
+msgid "Invalid page (%(page_number)s): %(message)s"
+msgstr ""
+
+#, python-format
+msgid "Empty list and “%(class_name)s.allow_empty” is False."
+msgstr ""
+
+msgid "Directory indexes are not allowed here."
+msgstr ""
+
+#, python-format
+msgid "“%(path)s” does not exist"
+msgstr ""
+
+#, python-format
+msgid "Index of %(directory)s"
+msgstr ""
+
+msgid "The install worked successfully! Congratulations!"
+msgstr ""
+
+#, python-format
+msgid ""
+"View <a href=\"https://docs.djangoproject.com/en/%(version)s/releases/\" "
+"target=\"_blank\" rel=\"noopener\">release notes</a> for Django %(version)s"
+msgstr ""
+
+#, python-format
+msgid ""
+"You are seeing this page because <a href=\"https://docs.djangoproject.com/en/"
+"%(version)s/ref/settings/#debug\" target=\"_blank\" "
+"rel=\"noopener\">DEBUG=True</a> is in your settings file and you have not "
+"configured any URLs."
+msgstr ""
+
+msgid "Django Documentation"
+msgstr ""
+
+msgid "Topics, references, &amp; how-to’s"
+msgstr ""
+
+msgid "Tutorial: A Polling App"
+msgstr ""
+
+msgid "Get started with Django"
+msgstr ""
+
+msgid "Django Community"
+msgstr ""
+
+msgid "Connect, get help, or contribute"
+msgstr ""
+
+#~ msgid "Применить"
+#~ msgstr "Apply"
+
+#~ msgid "Загрузка..."
+#~ msgstr "Loading..."
+
+#~ msgid "Сбросить"
+#~ msgstr "Reset"
+
+#~ msgid "По месяцу"
+#~ msgstr "By month"
+
+#~ msgid "По диапазону"
+#~ msgstr "By range"
+
+#~ msgid "Статус ChatGPT:"
+#~ msgstr "ChatGPT status:"
+
+#~ msgid "Проверка..."
+#~ msgstr "Checking..."
+
+#~ msgid "Модель:"
+#~ msgstr "Model:"
+
+#~ msgid "Введите ваш запрос..."
+#~ msgstr "Enter your request..."
+
+#~ msgid "Отправить"
+#~ msgstr "Send"
+
+#~ msgid "График данных"
+#~ msgstr "Data chart"
+
+#~ msgid "Таблица данных"
+#~ msgstr "Data table"
+
+#~ msgid "Готов к работе"
+#~ msgstr "Ready to work"
+
+#~ msgid "Не настроен"
+#~ msgstr "Not configured"
+
+#~ msgid "Ошибка:"
+#~ msgstr "Error:"
+
+#~ msgid "Неизвестный статус"
+#~ msgstr "Unknown status"
+
+#~ msgid "История ваших запросов и ответов ChatGPT"
+#~ msgstr "History of your ChatGPT requests and responses"
+
+#~ msgid "Дата и время"
+#~ msgstr "Date and time"
+
+#~ msgid "Вопрос"
+#~ msgstr "Question"
+
+#~ msgid "Токены"
+#~ msgstr "Tokens"
+
+#~ msgid "Действия"
+#~ msgstr "Actions"
+
+#~ msgid "Удалить"
+#~ msgstr "Delete"
+
+#~ msgid "токенов"
+#~ msgstr "tokens"
+
+#~ msgid "Вопрос:"
+#~ msgstr "Question:"
+
+#~ msgid "Навигация по страницам"
+#~ msgstr "Page navigation"
+
+#~ msgid "Первая"
+#~ msgstr "First"
+
+#~ msgid "Предыдущая"
+#~ msgstr "Previous"
+
+#~ msgid "Страница"
+#~ msgstr "Page"
+
+#~ msgid "Следующая"
+#~ msgstr "Next"
+
+#~ msgid "Последняя"
+#~ msgstr "Last"
+
+#~ msgid "Перейти к AI"
+#~ msgstr "Go to AI"
+
+#~ msgid "Детали запроса"
+#~ msgstr "Request details"
+
+#~ msgid "Дата и время:"
+#~ msgstr "Date and time:"
+
+#~ msgid "Ответ:"
+#~ msgstr "Answer:"
+
+#~ msgid "Таблица данных:"
+#~ msgstr "Data table:"
+
+#~ msgid "Использование токенов:"
+#~ msgstr "Token usage:"
+
+#~ msgid "Продолжить обсуждение"
+#~ msgstr "Continue discussion"
+
+#~ msgid "Меню"
+#~ msgstr "Menu"
+
+#~ msgid "Светлая тема"
+#~ msgstr "Light theme"
+
+#~ msgid "Темная тема"
+#~ msgstr "Dark theme"
+
+#~ msgid "Главная"
+#~ msgstr "Home"
+
+#~ msgid "Расходы"
+#~ msgstr "Expenses"
+
+#~ msgid "Зарплата"
+#~ msgstr "Salary"
+
+#~ msgid "Журнал AI"
+#~ msgstr "AI Log"
+
+#~ msgid "Выйти"
+#~ msgstr "Logout"
+
+#, fuzzy
+#~| msgid "Смена языка"
+#~ msgid "Смена темы"
+#~ msgstr "Change language"
+
+#~ msgid "Смена языка"
+#~ msgstr "Change language"
+
+#~ msgid "Менеджер"
+#~ msgstr "Manager"
+
+#~ msgid "Отчет по зарплате"
+#~ msgstr "Salary report"
+
+#~ msgid "Добавить выплату"
+#~ msgstr "Add payment"
+
+#~ msgid "Основание:"
+#~ msgstr "Reason:"
+
+#~ msgid "### Analysis"
+#~ msgstr "### Analysis"
+
+#~ msgid "### Reason Analysis"
+#~ msgstr "### Reason Analysis"
+
+#~ msgid "Only facts from the table."
+#~ msgstr "Only facts from the table."
+
+#~ msgid "Only facts from the DB (via table and aggregates):"
+#~ msgstr "Only facts from the DB (via table and aggregates):"
+
+#~ msgid "- Change in total sales amount"
+#~ msgstr "- Change in total sales amount"
+
+#~ msgid "- Change in number of deals"
+#~ msgstr "- Change in number of deals"
+
+#~ msgid ": total sales amount is "
+#~ msgstr ": total sales amount is "
+
+#~ msgid ", deals are "
+#~ msgstr ", deals are "
+
+#~ msgid ", average deal is "
+#~ msgstr ", average deal is "
+
+#~ msgid " is **"
+#~ msgstr " is **"
+
+#~ msgid "(change "
+#~ msgstr "(change "
+
+#~ msgid "deals "
+#~ msgstr "deals "
+
+#~ msgid "Biggest contribution to the decline by managers"
+#~ msgstr "Biggest contribution to the decline by managers"
+
+#~ msgid "Biggest contribution to the decline by companies"
+#~ msgstr "Biggest contribution to the decline by companies"

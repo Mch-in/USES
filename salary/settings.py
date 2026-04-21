@@ -21,12 +21,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env located at project root
 load_dotenv(BASE_DIR / '.env')
 
-# SECURITY: Store your Bitrix24 webhook URL base in an environment variable
-# e.g. 'https://your-domain.bitrix24.ru/rest/1/yoursecretkey'
-BITRIX_WEBHOOK_BASE = os.getenv('BITRIX_WEBHOOK_BASE')
+# SECURITY: Store your CRM24 webhook URL base in an environment variable
+# e.g. 'https://your-domain.crm24.ru/rest/1/yoursecretkey'
+CRM_WEBHOOK_BASE = os.getenv('CRM_WEBHOOK_BASE')
 
-if not BITRIX_WEBHOOK_BASE:
-    raise ImproperlyConfigured("BITRIX_WEBHOOK_BASE is not set. Please configure the environment variable.")
+# CRM API timeouts (seconds). Increase if east-way.crm24.ru is slow or behind VPN.
+CRM_CONNECT_TIMEOUT = int(os.getenv('CRM_CONNECT_TIMEOUT', '30'))
+CRM_READ_TIMEOUT = int(os.getenv('CRM_READ_TIMEOUT', '120'))
+
+if not CRM_WEBHOOK_BASE:
+    raise ImproperlyConfigured("CRM_WEBHOOK_BASE is not set. Please configure the environment variable.")
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -38,7 +42,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 SECRET_KEY = os.getenv('SECRET_KEY', "dev-insecure-secret-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
-if not DEBUG and (not SECRET_KEY or SECRET_KEY == "dev-insecure-secret-key"):
+if not DEBUG and SECRET_KEY == "dev-insecure-secret-key":
     raise ImproperlyConfigured("SECRET_KEY must be set in production.")
 
 ALLOWED_HOSTS = [
@@ -69,16 +73,18 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.locale.LocaleMiddleware',
 ]
 
 ROOT_URLCONF = 'salary.urls'
 
-CSRF_USE_SESSIONS = True
+# CSRF tokens stored in cookies (default) - works even without an active session
+# Set to True only if you need CSRF tokens in sessions (not recommended for login pages)
+CSRF_USE_SESSIONS = False
 LOGOUT_REDIRECT_URL = 'login'
 
 TEMPLATES = [
@@ -89,6 +95,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
+                'django.template.context_processors.i18n',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'salary_app.context_processors.global_user_context',
@@ -111,7 +118,7 @@ DATABASES = {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
         'NAME': os.getenv('DB_NAME', 'my_new_database'),
         'USER': os.getenv('DB_USER', 'root'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'newpassword'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '20014328'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '3306'),
     }
@@ -142,6 +149,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'ru'
 
+LANGUAGES = [
+    ('ru', 'Русский'),
+    ('uk', 'Українська'),
+    ('en', 'English'),
+]
+
 TIME_ZONE = 'Europe/Moscow'
 
 USE_I18N = True
@@ -169,25 +182,22 @@ COMPRESS_OFFLINE = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/'  # куда перенаправлять после успешного входа
+LOGIN_REDIRECT_URL = '/'  # where to redirect after successful login
 LOGOUT_REDIRECT_URL = '/login/'
 
-# GPT-OSS-120B Model Settings
-GPT_MODEL_PATH = os.getenv('GPT_MODEL_PATH', '')
-GPT_MODEL_TYPE = os.getenv('GPT_MODEL_TYPE', 'llama-cpp')  # Options: 'llama-cpp', 'transformers', 'vllm', 'llama-server'
-GPT_N_CTX = int(os.getenv('GPT_N_CTX', '4096'))  # Context window size
-GPT_N_THREADS = int(os.getenv('GPT_N_THREADS', '4'))  # Number of threads
-GPT_N_GPU_LAYERS = int(os.getenv('GPT_N_GPU_LAYERS', '0'))  # Number of GPU layers (0 = CPU only)
-# llama-server API settings
-LLAMA_SERVER_API_BASE = os.getenv('LLAMA_SERVER_API_BASE', 'http://localhost:8080')  # llama-server API base URL
-# llama-server auto-start settings
-LLAMA_SERVER_PATH = os.getenv('LLAMA_SERVER_PATH', '')  # Path to llama-server.exe
-LLAMA_AUTO_START = os.getenv('LLAMA_AUTO_START', 'True').lower() in ('1', 'true', 'yes', 'on')  # Auto-start llama-server
-# llama-server parameters (from user's command)
-LLAMA_FLASH_ATTENTION = os.getenv('LLAMA_FLASH_ATTENTION', '1')
-LLAMA_NCMOE = os.getenv('LLAMA_NCMOE', '25')
-LLAMA_NGL = os.getenv('LLAMA_NGL', '40')
-LLAMA_UB = os.getenv('LLAMA_UB', '2048')
-LLAMA_BATCH = os.getenv('LLAMA_BATCH', '2048')
-LLAMA_CONTEXT = os.getenv('LLAMA_CONTEXT', '32768')
-LLAMA_JINJA = os.getenv('LLAMA_JINJA', 'True').lower() in ('1', 'true', 'yes', 'on')
+# ChatGPT API Settings
+GPT_MODEL_TYPE = os.getenv('GPT_MODEL_TYPE', 'openai')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o')  # Use gpt-4o by default
+OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', None)  # Optional: for custom API endpoints
+
+# Production security (uncomment when deploying over HTTPS)
+# if not DEBUG:
+#     SECURE_SSL_REDIRECT = True
+#     SESSION_COOKIE_SECURE = True
+#     CSRF_COOKIE_SECURE = True
+#     SECURE_BROWSER_XSS_FILTER = True
+#     SECURE_CONTENT_TYPE_NOSNIFF = True
+#     SECURE_HSTS_SECONDS = 31536000
+#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+#     SECURE_HSTS_PRELOAD = True

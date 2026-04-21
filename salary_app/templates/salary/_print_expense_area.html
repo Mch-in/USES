@@ -1,0 +1,22 @@
+{% load i18n %}
+<div id="printExpenseArea" class="d-none">
+  <div class="print-container">
+    <h3>{% trans "Payment confirmation" %}</h3>
+    <div class="detail-row"><span class="detail-label">{% trans "Employee:" %}</span><span id="printExpenseEmployee" class="detail-value"></span></div>
+    <div class="detail-row"><span class="detail-label">{% if print_second_row_label %}{{ print_second_row_label }}{% else %}{% trans "Expense type:" %}{% endif %}</span><span id="printExpenseType" class="detail-value"></span></div>
+    <div class="detail-row"><span class="detail-label">{% trans "Date:" %}</span><span id="printExpenseDate" class="detail-value"></span></div>
+    <div class="detail-row"><span class="detail-label">{% trans "Amount:" %}</span><span id="printExpenseAmount" class="detail-value"></span></div>
+    {% if print_show_comment %}
+    <div class="detail-row" id="printExpenseCommentRow" style="display: none;">
+        <span class="detail-label">{% trans "Comment:" %}</span>
+        <span id="printExpenseComment" class="comment-value"></span>
+    </div>
+    {% endif %}
+    <div class="signature-section">
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div class="signature-caption">{% trans "Employee signature" %}</div>
+        </div>
+    </div>
+  </div>
+</div>

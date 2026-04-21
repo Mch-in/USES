@@ -1,63 +1,63 @@
 /**
  * Theme Toggle Functionality
- * Переключение между темной и светлой темой с сохранением в localStorage
+ * Switch between dark and light theme; persist choice in localStorage.
  */
 
 (function() {
   'use strict';
 
-  // Получаем текущую тему из localStorage или устанавливаем темную по умолчанию
+  // Read current theme from localStorage, default to dark
   function getTheme() {
     return localStorage.getItem('theme') || 'dark';
   }
 
-  // Сохраняем тему в localStorage
+  // Persist theme in localStorage
   function setTheme(theme) {
     localStorage.setItem('theme', theme);
   }
 
-  // Применяем тему к документу
+  // Apply theme to the document
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     updateThemeToggleButton(theme);
   }
 
-  // Обновляем иконку и текст кнопки переключения темы
+  // Update theme toggle icon and label
   function updateThemeToggleButton(theme) {
-    // Обновляем десктопную кнопку
-    const toggleBtn = document.getElementById('theme-toggle-btn');
-    if (toggleBtn) {
-      const icon = toggleBtn.querySelector('i');
-      const text = toggleBtn.querySelector('span');
+    // Helper to update one button (desktop and mobile)
+    function updateButton(btnId) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
 
-      if (theme === 'light') {
-        // Показываем иконку луны для переключения на темную тему
-        icon.className = 'bi bi-moon-stars-fill';
-        text.textContent = 'Темная тема';
-      } else {
-        // Показываем иконку солнца для переключения на светлую тему
-        icon.className = 'bi bi-sun-fill';
-        text.textContent = 'Светлая тема';
+      const icon = btn.querySelector('i');
+      const text = btn.querySelector('span'); // span may be absent on desktop
+      
+      const lightText = btn.getAttribute('data-text-light') || 'Light theme';
+      const darkText = btn.getAttribute('data-text-dark') || 'Dark theme';
+
+      if (icon) {
+        if (theme === 'light') {
+          // Moon icon: switch to dark theme
+          icon.className = 'bi bi-moon-stars-fill';
+          if (text) text.textContent = darkText;
+          btn.setAttribute('data-tooltip', darkText);
+        } else {
+          // Sun icon: switch to light theme
+          icon.className = 'bi bi-sun-fill';
+          if (text) text.textContent = lightText;
+          btn.setAttribute('data-tooltip', lightText);
+        }
       }
     }
 
-    // Обновляем мобильную кнопку
-    const mobileToggleBtn = document.getElementById('theme-toggle-btn-mobile');
-    if (mobileToggleBtn) {
-      const icon = mobileToggleBtn.querySelector('i');
-      const text = mobileToggleBtn.querySelector('span');
-
-      if (theme === 'light') {
-        icon.className = 'bi bi-moon-stars-fill';
-        text.textContent = 'Темная тема';
-      } else {
-        icon.className = 'bi bi-sun-fill';
-        text.textContent = 'Светлая тема';
-      }
-    }
+    // Desktop button
+    updateButton('theme-toggle-btn');
+    
+    // Mobile button
+    updateButton('theme-toggle-btn-mobile');
   }
 
-  // Переключаем тему
+  // Toggle theme
   function toggleTheme() {
     const currentTheme = getTheme();
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -65,29 +65,25 @@
     setTheme(newTheme);
     applyTheme(newTheme);
     
-    // Обновляем графики при смене темы
-    if (typeof window.updateChartsTheme === 'function') {
-      // Небольшая задержка, чтобы CSS переменные успели обновиться
-      setTimeout(function() {
-        window.updateChartsTheme();
-      }, 50);
-    }
+    // Dispatch custom event so other parts of the app (e.g. charts) react to theme changes
+    const event = new CustomEvent('themeChanged', { detail: { theme: newTheme } });
+    document.dispatchEvent(event);
   }
 
-  // Инициализация при загрузке страницы
+  // Init on page load
   function initTheme() {
     const savedTheme = getTheme();
     applyTheme(savedTheme);
   }
 
-  // Инициализируем тему при загрузке DOM
+  // Initialize theme when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initTheme);
   } else {
     initTheme();
   }
 
-  // Экспортируем функцию переключения для использования в HTML
+  // Expose toggle for inline handlers in HTML
   window.toggleTheme = toggleTheme;
 })();
 

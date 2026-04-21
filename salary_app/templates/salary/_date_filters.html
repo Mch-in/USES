@@ -1,0 +1,26 @@
+{% load i18n %}
+<div class="filter-toggle-group">
+    <input type="radio" name="filter_type" value="month" id="filter_month" {% if request.GET.filter_type != "date_range" %}checked{% endif %} class="filter-toggle-input">
+    <label for="filter_month" class="filter-toggle-btn {% if request.GET.filter_type != "date_range" %}active{% endif %}">{% trans "By month" %}</label>
+    <input type="radio" name="filter_type" value="date_range" id="filter_date_range" {% if request.GET.filter_type == "date_range" %}checked{% endif %} class="filter-toggle-input">
+    <label for="filter_date_range" class="filter-toggle-btn {% if request.GET.filter_type == "date_range" %}active{% endif %}">{% trans "By date range" %}</label>
+</div>
+<div id="month_filter_group" class="input-group input-group-sm mt-2" {% if request.GET.filter_type == "date_range" %}style="display: none;"{% endif %}>
+    <select name="month" class="form-select">
+        <option value="">{% trans "All" %}</option>
+        {% for num, name in months.items %}
+            <option value="{{ num }}" {% if request.GET.month == num|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+    </select>
+    <select name="year" class="form-select">
+        <option value="" {% if selected_year == "" %}selected{% endif %}>{% trans "All" %}</option>
+        {% for y in years %}
+            <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+</div>
+<div id="date_range_filter_group" class="input-group input-group-sm mt-2" {% if request.GET.filter_type != "date_range" %}style="display: none;"{% endif %}>
+    {% now "Y-m-d" as today %}
+    <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+    <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to|default:today }}">
+</div>

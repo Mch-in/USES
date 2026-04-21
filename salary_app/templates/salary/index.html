@@ -1,21 +1,15 @@
 {% load static %}
 {% load compress %}
+{% load i18n %}
 {% now "U" as now %}
 <!DOCTYPE html>
-<html lang="ру">
+<html lang="{{ LANGUAGE_CODE|default:'ru' }}">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"/>
-    <title>{% block title %}Загрузка CSV{% endblock %}</title>
-    <!-- Apply theme immediately to prevent FOUC (Flash of Unstyled Content) -->
-    <script>
-      (function() {
-        // Получаем тему из localStorage или устанавливаем темную по умолчанию
-        var theme = localStorage.getItem('theme') || 'dark';
-        // Применяем тему к документу до загрузки остального контента
-        document.documentElement.setAttribute('data-theme', theme);
-      })();
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover"/>
+    <title>USES{% block title %} | {% trans "Home" %}{% endblock %}</title>
+    <!-- Apply theme and sidebar state immediately to prevent FOUC -->
+    <script src="{% static 'salary/head-init.js' %}?v={{ now }}"></script>
     <!-- CDN styles outside of compressor -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -30,33 +24,32 @@
         <button class="mobile-menu-toggle" type="button" aria-label="Toggle menu">
           <i class="bi bi-list"></i>
         </button>
-        <span class="mobile-nav-title">Меню</span>
+        <span class="mobile-nav-title">{% trans "Menu" %}</span>
       </div>
       <div class="mobile-nav-content">
         <!-- Theme Toggle Button for Mobile -->
-        <button type="button" class="mobile-nav-link theme-toggle-btn-mobile" id="theme-toggle-btn-mobile" onclick="toggleTheme()">
+        <button type="button" class="mobile-nav-link theme-toggle-btn-mobile" id="theme-toggle-btn-mobile" onclick="toggleTheme()" data-text-light="{% trans 'Light theme' %}" data-text-dark="{% trans 'Dark theme' %}">
           <i class="bi bi-sun-fill"></i>
-          <span>Светлая тема</span>
+          <span>{% trans "Light theme" %}</span>
         </button>
+        <!-- Mobile language switcher -->
+        <form method="post" action="{% url 'set_language' %}" class="mobile-language-form" onsubmit="sessionStorage.setItem('keepMobileMenuOpen', 'true');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% get_current_language as LANGUAGE_CODE %}
+          {% if LANGUAGE_CODE == 'ru' %}<input type="hidden" name="language" value="uk">
+          {% elif LANGUAGE_CODE == 'uk' %}<input type="hidden" name="language" value="en">
+          {% else %}<input type="hidden" name="language" value="ru">{% endif %}
+          <button type="submit" class="mobile-nav-link language-toggle-btn-mobile">
+            <i class="bi bi-globe"></i>
+            <span>
+              {% if LANGUAGE_CODE == 'ru' %}РУС{% elif LANGUAGE_CODE == 'uk' %}УКР{% else %}ENG{% endif %}
+            </span>
+          </button>
+        </form>
+        <div class="mobile-nav-divider" role="separator" aria-hidden="true"></div>
         <div class="mobile-nav-links">
-          {% if is_admin %}
-            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'sales_list' %}active{% endif %}" href="{% url 'sales_list' %}">
-              <i class="bi bi-house-door"></i>
-              <span>Главная</span>
-            </a>
-            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'production_expense_list' %}active{% endif %}" href="{% url 'production_expense_list' %}">
-              <i class="bi bi-receipt"></i>
-              <span>Расходы</span>
-            </a>
-            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'salary_payment_list' %}active{% endif %}" href="{% url 'salary_payment_list' %}">
-              <i class="bi bi-cash-coin"></i>
-              <span>Зарплата</span>
-            </a>
-            <a class="mobile-nav-link {% if request.resolver_match.url_name == 'ai_analysis' %}active{% endif %}" href="{% url 'ai_analysis' %}">
-              <i class="bi bi-graph-up-arrow"></i>
-              <span>AI Анализ</span>
-            </a>
-          {% endif %}
+          {% include 'salary/_nav_links.html' with link_class='mobile-nav-link' show_tooltips=False %}
         </div>
         {% if user.is_authenticated %}
           <div class="mobile-nav-user">
@@ -75,7 +68,7 @@
               {% csrf_token %}
               <button type="submit" class="mobile-nav-link mobile-logout-btn">
                 <i class="bi bi-box-arrow-right"></i>
-                <span>Выйти</span>
+                <span>{% trans "Log out" %}</span>
               </button>
             </form>
           </div>
@@ -87,37 +80,32 @@
       <!-- Desktop Sidebar Navigation (Left) -->
       <aside class="sidebar" id="sidebar">
         <nav class="sidebar-nav">
-          <!-- Прокручиваемая область для навигационных кнопок -->
+          <!-- Scrollable area for navigation buttons -->
           <div class="sidebar-nav-scrollable">
             <!-- Toggle Sidebar Button and Theme Toggle Button in one row -->
             <div class="sidebar-controls-row">
-              <button type="button" class="sidebar-link theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" data-tooltip="Переключить тему">
+              <button type="button" class="sidebar-link theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" data-text-light="{% trans 'Light theme' %}" data-text-dark="{% trans 'Dark theme' %}">
                 <i class="bi bi-sun-fill"></i>
+                <span class="theme-toggle-label">{% trans "Switch theme" %}</span>
               </button>
-              <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="Свернуть/Развернуть меню">
-                <i class="bi bi-chevron-left" id="sidebar-toggle-icon"></i>
-              </button>
+              <!-- Desktop language switcher -->
+              <form method="post" action="{% url 'set_language' %}" class="sidebar-language-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                {% get_current_language as LANGUAGE_CODE %}
+                {% if LANGUAGE_CODE == 'ru' %}<input type="hidden" name="language" value="uk">
+                {% elif LANGUAGE_CODE == 'uk' %}<input type="hidden" name="language" value="en">
+                {% else %}<input type="hidden" name="language" value="ru">{% endif %}
+                <button type="submit" class="sidebar-link language-toggle-btn">
+                  <span class="language-toggle-code">{% if LANGUAGE_CODE == 'ru' %}РУС{% elif LANGUAGE_CODE == 'uk' %}УКР{% else %}ENG{% endif %}</span>
+                  <span class="language-toggle-label">{% trans "Change language" %}</span>
+                </button>
+              </form>
             </div>
-            {% if is_admin %}
-              <a class="sidebar-link {% if request.resolver_match.url_name == 'sales_list' %}active{% endif %}" href="{% url 'sales_list' %}" data-tooltip="Главная">
-                <i class="bi bi-house-door"></i>
-                <span>Главная</span>
-              </a>
-              <a class="sidebar-link {% if request.resolver_match.url_name == 'production_expense_list' %}active{% endif %}" href="{% url 'production_expense_list' %}" data-tooltip="Расходы">
-                <i class="bi bi-receipt"></i>
-                <span>Расходы</span>
-              </a>
-              <a class="sidebar-link {% if request.resolver_match.url_name == 'salary_payment_list' %}active{% endif %}" href="{% url 'salary_payment_list' %}" data-tooltip="Зарплата">
-                <i class="bi bi-cash-coin"></i>
-                <span>Зарплата</span>
-              </a>
-              <a class="sidebar-link {% if request.resolver_match.url_name == 'ai_analysis' %}active{% endif %}" href="{% url 'ai_analysis' %}" data-tooltip="AI Анализ">
-                <i class="bi bi-graph-up-arrow"></i>
-                <span>AI Анализ</span>
-              </a>
-            {% endif %}
+            <div class="sidebar-divider" role="separator" aria-hidden="true"></div>
+            {% include 'salary/_nav_links.html' with link_class='sidebar-link' show_tooltips=True %}
           </div>
-          <!-- Закрепленные элементы внизу -->
+          <!-- Sticky elements at the bottom -->
           {% if user.is_authenticated %}
             <div class="sidebar-user-info">
               {% if is_admin and request.resolver_match.url_name != 'users_list' %}
@@ -134,9 +122,9 @@
             </div>
             <form method="post" action="{% url 'logout' %}" class="sidebar-logout-form">
               {% csrf_token %}
-              <button type="submit" class="sidebar-link sidebar-logout-btn" data-tooltip="Выйти">
+              <button type="submit" class="sidebar-link sidebar-logout-btn" data-tooltip="{% trans 'Log out' %}">
                 <i class="bi bi-box-arrow-right"></i>
-                <span>Выйти</span>
+                <span>{% trans "Log out" %}</span>
               </button>
             </form>
           {% endif %}
@@ -146,7 +134,7 @@
       <!-- Main Content -->
       <main class="main-content">
         <div class="content-window">
-          <div class="container py-4">
+          <div class="container-fluid py-4 px-0">
             {% block body %}{% endblock %}
           </div>
         </div>
@@ -158,40 +146,22 @@
       <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <!-- Theme Toggle Script -->
-      <script src="{% static 'salary/theme-toggle.js' %}"></script>
-      <!-- Sidebar Toggle Script -->
-      <script src="{% static 'salary/sidebar-toggle.js' %}"></script>
-      {% compress js %}
+      <script src="{% static 'salary/theme-toggle.js' %}?v={{ now }}"></script>
       <script>
-        // General initialization script for all pages
-        $(document).ready(function() {
-          // Initialize Bootstrap tooltips
-          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-          var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl)
-          })
-          
-          // Mobile menu toggle
-          $('.mobile-menu-toggle').on('click', function() {
-            $('.mobile-nav').toggleClass('mobile-nav-open');
-            $(this).find('i').toggleClass('bi-list bi-x-lg');
-          });
-          
-          // Close mobile menu when clicking on a link
-          $('.mobile-nav-link').on('click', function() {
-            $('.mobile-nav').removeClass('mobile-nav-open');
-            $('.mobile-menu-toggle i').removeClass('bi-x-lg').addClass('bi-list');
-          });
-          
-          // Close mobile menu when clicking outside
-          $(document).on('click', function(e) {
-            if (!$(e.target).closest('.mobile-nav').length && $('.mobile-nav').hasClass('mobile-nav-open')) {
-              $('.mobile-nav').removeClass('mobile-nav-open');
-              $('.mobile-menu-toggle i').removeClass('bi-x-lg').addClass('bi-list');
-            }
-          });
-        });
+        window.JS_TRANSLATIONS = {
+          importConfirm: "{% trans 'Import new deals from CRM?' %}",
+          error: "{% trans 'Error' %}",
+          loading: "{% trans 'Loading: ' %}",
+          min: "{% trans 'min' %}",
+          sec: "{% trans 'sec' %}",
+          loadingCompleted: "{% trans 'Loading completed' %}",
+          dataLoaded: "{% trans 'Data loaded successfully!' %}",
+          networkError: "{% trans 'Network error: ' %}",
+          expectedJson: "{% trans 'Expected JSON' %}"
+        };
       </script>
+      {% compress js %}
+      <script src="{% static 'salary/base.js' %}?v={{ now }}"></script>
       {% endcompress %}
     {% endblock %}
     

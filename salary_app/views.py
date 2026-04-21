@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
-from .models import Sale, SalaryPayment, BitrixUser, Company, ImportLock, Employee, ExpenseType, ProductionExpense
+from .models import Sale, SalaryPayment, CrmUser, Company, ImportLock, Employee, ExpenseType, ProductionExpense
 from django.contrib import messages
 from django.db.models import Sum, IntegerField, Value, CharField, F
 from django.http import JsonResponse, HttpResponse
@@ -16,9 +16,18 @@ from dateutil.parser import parse as parse_date
 import openpyxl
 from django.db import transaction
 from django.utils.timezone import now
+from django.utils.translation import gettext_lazy
 from .forms import RegistrationForm, SalaryPaymentForm, ProductionExpenseForm, EmployeeForm, ExpenseTypeForm
 from .decorators import admin_required
-from . import ai_views
+from .utils import (
+    get_months,
+    get_current_crm_user,
+    normalize_amount,
+    get_month_date_range,
+    apply_dashboard_filters,
+    parse_date_range,
+)
+# from . import ai_views  # DISABLED: local AI features are turned off
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from urllib.parse import quote
@@ -26,6 +35,9 @@ from django.conf import settings
 from django.urls import reverse
 import logging
 from urllib.parse import urlparse
+from typing import cast, Any
+from django.utils.encoding import force_str
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +47,7 @@ def is_ajax(request):
 
 
 def _webhook_urls():
-    base = settings.BITRIX_WEBHOOK_BASE
+    base = settings.CRM_WEBHOOK_BASE
     return {
         'deals': f'{base}/crm.deal.list',
         'users': f'{base}/user.get',
@@ -43,76 +55,145 @@ def _webhook_urls():
     }
 
 
-def _post_with_retry(url, *, json, timeout_seconds=15, max_retries=3):
+def _post_with_retry(url, *, json, timeout_seconds=None, connect_timeout_seconds=None, max_retries=3, on_retry=None):
+    """
+    Timeout (connect, read): for slow VPN/SSL or heavy CRM we allow more time.
+    By default values are taken from settings (CRM_CONNECT_TIMEOUT, CRM_READ_TIMEOUT).
+    """
+    if connect_timeout_seconds is None:
+        connect_timeout_seconds = getattr(settings, 'CRM_CONNECT_TIMEOUT', 30)
+    if timeout_seconds is None:
+        timeout_seconds = getattr(settings, 'CRM_READ_TIMEOUT', 120)
     last_exc = None
+    timeout_tuple = (connect_timeout_seconds, timeout_seconds)
     for attempt in range(1, max_retries + 1):
         try:
-            resp = requests.post(url, json=json, timeout=timeout_seconds)
+            resp = requests.post(url, json=json, timeout=timeout_tuple)
             resp.raise_for_status()
             return resp
-        except (Timeout, RequestException) as exc:
+        except (Timeout, RequestException, requests.exceptions.ConnectionError) as exc:
             last_exc = exc
-            logger.warning("Bitrix POST failed (attempt %s/%s): %s", attempt, max_retries, exc)
+            if callable(on_retry):
+                try:
+                    on_retry(attempt, max_retries)
+                except Exception:
+                    pass
+            logger.warning("CRM POST failed (attempt %s/%s): %s", attempt, max_retries, exc)
             if attempt == max_retries:
                 break
-    raise last_exc
+    raise last_exc if last_exc is not None else RequestException("Max retries exceeded")
 
 
 def _validate_webhook_base():
-    base = getattr(settings, 'BITRIX_WEBHOOK_BASE', '') or ''
+    base = getattr(settings, 'CRM_WEBHOOK_BASE', '') or ''
     try:
         parsed = urlparse(base)
     except Exception:
-        return "BITRIX_WEBHOOK_BASE: некорректный URL. Проверьте .env"
+        return "CRM_WEBHOOK_BASE: invalid URL. Please check your .env configuration."
 
     if not parsed.scheme or not parsed.netloc:
-        return "BITRIX_WEBHOOK_BASE: отсутствует схема/домен. Пример: https://your.bitrix24.ru/rest/1/token"
+        return "CRM_WEBHOOK_BASE: missing scheme or domain. Example: https://your.crm24.ru/rest/1/token"
 
     host = parsed.hostname or ''
     path = parsed.path or ''
 
     if 'example.local' in host or 'placeholder' in base:
-        return "Укажите реальный вебхук Bitrix24 в .env (BITRIX_WEBHOOK_BASE). Сейчас установлена заглушка."
+        return "Please specify a real CRM24 webhook in .env (CRM_WEBHOOK_BASE). A placeholder is currently set."
 
     if '/rest/' not in path:
-        return "BITRIX_WEBHOOK_BASE должен содержать путь вида /rest/<userId>/<token>"
+        return "CRM_WEBHOOK_BASE must contain a path of the form /rest/<userId>/<token>."
 
     return None
 
 
-def index(request):
-    if request.method != "POST":
-        return JsonResponse({"success": False, "error": "Метод не поддерживается"}, status=405)
+@login_required
+@require_GET
+def import_status(request):
+    """Import status: sales import progress in % and remaining time (for frontend polling)."""
+    lock, _ = ImportLock.objects.get_or_create(id=1)
+    # If the lock is "stuck" (import interrupted, server restarted) — assume there is no active import
+    stale_minutes = 2
+    if lock.is_locked:
+        if not lock.updated_at or (timezone.now() - lock.updated_at > timedelta(minutes=stale_minutes)):
+            ImportLock.objects.filter(id=1).update(is_locked=False, updated_at=timezone.now())
+            lock = ImportLock.objects.get(id=1)
+    is_locked = bool(lock.is_locked)
+    return JsonResponse({
+        "is_locked": is_locked,
+        "stage": getattr(lock, "stage", "idle"),
+        "message": getattr(lock, "message", ""),
+        "progress_percent": getattr(lock, "progress_percent", 0.0),
+        "processed": getattr(lock, "processed", 0),
+        "total": getattr(lock, "total", 0),
+        "eta_seconds": getattr(lock, "eta_seconds", 0),
+        "started_at": lock.started_at.isoformat() if getattr(lock, "started_at", None) else None,
+    })
 
-    # Проверяем корректность настроек вебхука до сетевых запросов
+
+@login_required
+def index(request):
+    accept_header = request.headers.get("Accept", "")
+    wants_json = "application/json" in accept_header
+
+    if request.method != "POST":
+        if wants_json:
+            return JsonResponse({"success": False, "error": gettext_lazy("Method not allowed")}, status=405)
+        return render(request, "salary/error_simple.html", {
+            "message": gettext_lazy("Method not allowed. Return to the sales page and click 'Load'."),
+        }, status=405)
+
     settings_error = _validate_webhook_base()
     if settings_error:
-        return JsonResponse({"success": False, "error": settings_error})
+        if wants_json:
+            return JsonResponse({"success": False, "error": settings_error})
+        return render(request, "salary/error_simple.html", {"message": settings_error}, status=200)
 
-    # 🔒 Обрабатываем блокировку
     with transaction.atomic():
         lock, _ = ImportLock.objects.select_for_update().get_or_create(id=1)
-
         if lock.is_locked and (now() - lock.updated_at < timedelta(minutes=5)):
-            return JsonResponse({"success": False, "error": "Импорт уже выполняется другим пользователем. Попробуйте позже."})
-
+            msg = gettext_lazy("Import is already running by another user. Please try again later.")
+            if wants_json:
+                return JsonResponse({"success": False, "error": msg})
+            return render(request, "salary/error_simple.html", {"message": msg}, status=200)
         lock.is_locked = True
         lock.updated_at = now()
+        lock.stage = "starting"
+        lock.message = gettext_lazy("Preparing…")
+        lock.progress_percent = 0.0
+        lock.processed = 0
+        lock.total = 0
+        lock.eta_seconds = 0
+        lock.started_at = timezone.now()
         lock.save()
 
     try:
-        # Импорт пользователей и компаний
-        # These functions now return a map for faster lookups
+        ImportLock.objects.filter(id=1).update(
+            stage="users", message=gettext_lazy("Loading users…"),
+            progress_percent=5.0, updated_at=timezone.now()
+        )
         user_map = import_users()
+        ImportLock.objects.filter(id=1).update(
+            stage="companies", message=gettext_lazy("Loading companies…"),
+            progress_percent=10.0, updated_at=timezone.now()
+        )
         company_map = import_companies()
-
         sales_to_create = []
         start = 0
-        # Fetch existing deal IDs to avoid duplicates.
         existing_ids = set(Sale.objects.values_list('id_number', flat=True))
+        total_deals = 0
+        started_at = timezone.now()
 
+        ImportLock.objects.filter(id=1).update(
+            stage="deals", message=gettext_lazy("Loading deals…"),
+            progress_percent=15.0, updated_at=timezone.now()
+        )
+
+        deal_batch_num = 0
         while True:
-            # PERFORMANCE: Select only the fields you need.
+            ImportLock.objects.filter(id=1).update(
+                stage="deals", message=gettext_lazy("Loading deals… (page %s)") % (deal_batch_num + 1),
+                progress_percent=min(99.0, 15.0 + deal_batch_num * 0.3), updated_at=timezone.now()
+            )
             data = {
                 'start': start,
                 'select': [
@@ -121,43 +202,64 @@ def index(request):
                     'TITLE'
                 ]
             }
-
-            response = _post_with_retry(_webhook_urls()['deals'], json=data)
+            def _on_retry_deals(attempt, _max):
+                ImportLock.objects.filter(id=1).update(
+                    stage="deals", message=gettext_lazy("Loading deals… (retry %s/%s)") % (attempt, _max),
+                    progress_percent=min(99.0, 15.0 + deal_batch_num * 0.3 + attempt * 0.2), updated_at=timezone.now()
+                )
+            response = _post_with_retry(_webhook_urls()['deals'], json=data, on_retry=_on_retry_deals)
             response_json = response.json()
-
+            if total_deals == 0 and response_json.get("total") is not None:
+                try:
+                    total_deals = int(response_json["total"])
+                except (TypeError, ValueError):
+                    pass
             batch = response_json.get('result', [])
             if not batch:
                 break
 
+            processed = start + len(batch)
+            if "next" in response_json:
+                try:
+                    processed = int(response_json["next"])
+                except (TypeError, ValueError):
+                    pass
+            percent = 15.0
+            eta_seconds = 0
+            if total_deals > 0:
+                percent = min(99.0, 15.0 + (processed / total_deals) * 80.0)
+                elapsed = (timezone.now() - started_at).total_seconds()
+                if elapsed > 0 and processed > 0:
+                    rate = processed / elapsed
+                    if rate > 0:
+                        eta_seconds = int((total_deals - processed) / rate)
+            ImportLock.objects.filter(id=1).update(
+                stage="deals", message=gettext_lazy("Loading deals…"),
+                progress_percent=percent, processed=processed, total=total_deals,
+                eta_seconds=eta_seconds, updated_at=timezone.now()
+            )
+            deal_batch_num += 1
+
             for item in batch:
-                # Process only won deals
                 if item.get('STAGE_ID') != "C1:WON":
                     continue
-
                 deal_id = str(item.get('ID'))
-                # Skip deals that are already in the database
                 if deal_id in existing_ids:
                     continue
-
-                # PERFORMANCE: Use pre-fetched map instead of a DB query in a loop.
                 manager = user_map.get(int(item.get('ASSIGNED_BY_ID')))
                 if not manager:
-                    continue  # Неизвестный пользователь — пропускаем
-
+                    continue
                 try:
                     closing_date = parse_date(item.get("CLOSEDATE")).date() if item.get("CLOSEDATE") else None
                 except (ValueError, TypeError):
                     closing_date = None
-
                 company_id = item.get('COMPANY_ID')
-                # PERFORMANCE: Use pre-fetched map.
                 company = company_map.get(int(company_id)) if company_id else None
-
                 sales_to_create.append(Sale(
                     id_number=deal_id,
                     manager=manager,
                     sale=item.get('OPPORTUNITY') or 0,
-                    company=company, # Assign ForeignKey object
+                    company=company,
                     account_number=(
                         item.get('UF_CRM_1740138171')[0]
                         if isinstance(item.get('UF_CRM_1740138171'), list) and item.get('UF_CRM_1740138171')
@@ -173,36 +275,68 @@ def index(request):
             else:
                 break
 
-        # PERFORMANCE: Use bulk_create for efficient insertion.
         if sales_to_create:
             Sale.objects.bulk_create(sales_to_create, ignore_conflicts=True)
-        return JsonResponse({"success": True, "message": f"Обновление завершено. Добавлено {len(sales_to_create)} новых сделок."})
+        ImportLock.objects.filter(id=1).update(
+            stage="done", message=gettext_lazy("Done"),
+            progress_percent=100.0, eta_seconds=0, updated_at=timezone.now()
+        )
+        success_message = gettext_lazy("Update completed. %(count)s new deals have been added.") % {
+            "count": len(sales_to_create)
+        }
+        if wants_json:
+            return JsonResponse({"success": True, "message": success_message})
+        return render(request, "salary/error_simple.html", {"message": success_message}, status=200)
 
+    except (RequestException, Timeout) as e:
+        logger.warning("Import failed (CRM unreachable): %s", e)
+        error_message = gettext_lazy("Failed to update sales. Please check integration settings and try again.")
+        ImportLock.objects.filter(id=1).update(
+            stage="error", message=error_message,
+            eta_seconds=0, updated_at=timezone.now()
+        )
+        if wants_json:
+            return JsonResponse({"success": False, "error": error_message}, status=200)
+        return render(request, "salary/error_simple.html", {"message": error_message}, status=200)
     except Exception as e:
         logger.exception("Import failed: %s", e)
-        # Возвращаем 200 с success:false, чтобы фронтенд не считал это сетевой ошибкой
-        return JsonResponse({"success": False, "error": "Не удалось обновить продажи. Проверьте настройки интеграции и повторите попытку."}, status=200)
-
+        error_message = gettext_lazy("Failed to update sales. Please check integration settings and try again.")
+        ImportLock.objects.filter(id=1).update(
+            stage="error", message=error_message,
+            eta_seconds=0, updated_at=timezone.now()
+        )
+        if wants_json:
+            return JsonResponse({"success": False, "error": error_message}, status=200)
+        return render(request, "salary/error_simple.html", {"message": error_message}, status=200)
     finally:
-        # 🔓 Снимаем блокировку
-        ImportLock.objects.filter(id=1).update(is_locked=False)
+        ImportLock.objects.filter(id=1).update(is_locked=False, updated_at=timezone.now())
 
 
 def import_users():
     """
-    Imports or updates users from Bitrix24.
+    Imports or updates users from CRM24.
     PERFORMANCE: Uses bulk operations to minimize database queries.
-    Returns a dictionary mapping user_id to BitrixUser object for quick lookups.
+    Returns a dictionary mapping user_id to CrmUser object for quick lookups.
     """
     try:
         start = 0
-        existing_users = {u.user_id: u for u in BitrixUser.objects.all()}
+        existing_users = {u.user_id: u for u in CrmUser.objects.all()}
         users_to_create = []
         users_to_update = []
+        batch_num = 0
 
         while True:
+            ImportLock.objects.filter(id=1).update(
+                stage="users", message="Loading users… (page %s)" % (batch_num + 1),
+                progress_percent=min(9.0, 5.0 + batch_num * 0.4), updated_at=timezone.now()
+            )
             payload = {"start": start}
-            response = _post_with_retry(_webhook_urls()['users'], json=payload)
+            def _on_retry_users(attempt, _max):
+                ImportLock.objects.filter(id=1).update(
+                    stage="users", message="Loading users… (retry %s/%s)" % (attempt, _max),
+                    progress_percent=min(9.0, 5.0 + batch_num * 0.4 + attempt * 0.15), updated_at=timezone.now()
+                )
+            response = _post_with_retry(_webhook_urls()['users'], json=payload, on_retry=_on_retry_users)
             api_users = response.json().get("result", [])
             if not api_users:
                 break
@@ -220,7 +354,14 @@ def import_users():
                         existing_user.last_name = user_data['last_name']
                         users_to_update.append(existing_user)
                 else:
-                    users_to_create.append(BitrixUser(user_id=user_id, **user_data))
+                    users_to_create.append(CrmUser(user_id=user_id, **user_data))
+
+            batch_num += 1
+            progress = min(9.0, 5.0 + batch_num * 1.5)
+            ImportLock.objects.filter(id=1).update(
+                stage="users", message="Loading users…",
+                progress_percent=progress, updated_at=timezone.now()
+            )
 
             if "next" in response.json():
                 start = response.json()["next"]
@@ -228,21 +369,24 @@ def import_users():
                 break
 
         if users_to_create:
-            BitrixUser.objects.bulk_create(users_to_create)
+            CrmUser.objects.bulk_create(users_to_create)
         if users_to_update:
-            BitrixUser.objects.bulk_update(users_to_update, ['name', 'last_name'])
+            CrmUser.objects.bulk_update(users_to_update, ['name', 'last_name'])
 
-        logger.info("Импорт пользователей завершён")
+        logger.info("User import completed")
         # Return a fresh map of all users
-        return {u.user_id: u for u in BitrixUser.objects.all()}
+        return {u.user_id: u for u in CrmUser.objects.all()}
+    except (RequestException, Timeout) as e:
+        logger.warning("Error during user import (network/timeout): %s", e)
+        raise
     except Exception as e:
-        logger.exception("Ошибка при импорте пользователей: %s", e)
-        return {}
+        logger.exception("Error during user import: %s", e)
+        raise
 
 
 def import_companies():
     """
-    Imports or updates companies from Bitrix24.
+    Imports or updates companies from CRM24.
     PERFORMANCE: Uses bulk operations to minimize database queries.
     Returns a dictionary mapping company_id to Company object for quick lookups.
     """
@@ -251,10 +395,20 @@ def import_companies():
         existing_companies = {c.company_id: c for c in Company.objects.all()}
         companies_to_create = []
         companies_to_update = []
+        batch_num = 0
 
         while True:
+            ImportLock.objects.filter(id=1).update(
+                stage="companies", message="Loading companies… (page %s)" % (batch_num + 1),
+                progress_percent=min(14.0, 10.0 + batch_num * 0.4), updated_at=timezone.now()
+            )
             payload = {"start": start, "select": ["ID", "TITLE"]}
-            response = _post_with_retry(_webhook_urls()['companies'], json=payload)
+            def _on_retry_companies(attempt, _max):
+                ImportLock.objects.filter(id=1).update(
+                    stage="companies", message="Loading companies… (retry %s/%s)" % (attempt, _max),
+                    progress_percent=min(14.0, 10.0 + batch_num * 0.4 + attempt * 0.2), updated_at=timezone.now()
+                )
+            response = _post_with_retry(_webhook_urls()['companies'], json=payload, on_retry=_on_retry_companies)
             api_companies = response.json().get("result", [])
             if not api_companies:
                 break
@@ -269,6 +423,13 @@ def import_companies():
                 else:
                     companies_to_create.append(Company(company_id=company_id, title=title))
 
+            batch_num += 1
+            progress = min(14.0, 10.0 + batch_num * 1.5)
+            ImportLock.objects.filter(id=1).update(
+                stage="companies", message="Loading companies…",
+                progress_percent=progress, updated_at=timezone.now()
+            )
+
             if "next" in response.json():
                 start = response.json()["next"]
             else:
@@ -279,11 +440,14 @@ def import_companies():
         if companies_to_update:
             Company.objects.bulk_update(companies_to_update, ['title'])
 
-        logger.info("Импорт компаний завершён")
+        logger.info("Company import completed")
         return {c.company_id: c for c in Company.objects.all()}
+    except (RequestException, Timeout) as e:
+        logger.warning("Error during company import (network/timeout): %s", e)
+        raise
     except Exception as e:
-        logger.exception("Ошибка при импорте компаний: %s", e)
-        return {}
+        logger.exception("Error during company import: %s", e)
+        raise
 
 def parse_decimal(value):
     try:
@@ -306,19 +470,8 @@ def sales_list(request):
     sort_by = request.GET.get('sort', 'closing_date')
     order = request.GET.get('order', 'desc')
 
-    months = {
-        1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
-        5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
-        9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь',
-    }
-
-    try:
-        # Use BitrixUser model
-        current_user = BitrixUser.objects.get(django_user=request.user)
-    except BitrixUser.DoesNotExist:
-        current_user = None
-
-    is_admin = current_user.is_admin if current_user else False
+    months = get_months()
+    current_user, is_admin = get_current_crm_user(request)
 
     # Base querysets
     sales = Sale.objects.select_related('manager', 'company').annotate(
@@ -348,117 +501,29 @@ def sales_list(request):
 
 
     salary_qs = SalaryPayment.objects.all()
-
     manager_id = request.GET.get('manager')
-
-    if not is_admin and current_user:
-        # Ограничиваем доступ только к своим продажам
-        sales = sales.filter(manager=current_user)
-        salary_qs = salary_qs.filter(manager=current_user)
-    elif manager_id:
-        # Для админа: фильтрация по выбранному менеджеру
-        sales = sales.filter(manager_id=manager_id)
-        salary_qs = salary_qs.filter(manager_id=manager_id)
+    expenses_qs = ProductionExpense.objects.all()
+    sales, salary_qs, expenses_qs, _dash_meta = apply_dashboard_filters(
+        sales,
+        salary_qs,
+        expenses_qs,
+        is_admin=is_admin,
+        current_user=current_user,
+        manager_id=manager_id,
+        month=month,
+        year_param=year_param,
+        date_from=date_from,
+        date_to=date_to,
+        filter_type=filter_type,
+    )
+    selected_year = _dash_meta.get("effective_year") or ""
 
     # -------------------------------
-    # Date Filtering Logic
+    # Aggregations and groupings
     # -------------------------------
-    current_year = timezone.now().year
-    selected_year = year_param
 
-    # Default to current year if no year is specified on first load
-    if year_param is None:
-        selected_year = str(current_year)
-
-    if filter_type == 'date_range':
-        if date_from and date_to:
-            try:
-                date_start_naive = datetime.strptime(date_from, "%Y-%m-%d")
-                date_end_naive = datetime.strptime(date_to, "%Y-%m-%d")
-
-                # Make them timezone aware
-                date_start = timezone.make_aware(date_start_naive)
-                date_end = timezone.make_aware(datetime.combine(date_end_naive, datetime.max.time()))
-
-                sales = sales.filter(closing_date__range=(date_start.date(), date_end.date()))
-                salary_qs = salary_qs.filter(payment_datetime__gte=date_start, payment_datetime__lte=date_end)
-            except ValueError:
-                pass # Ignore invalid date formats
-    else: # Default to month filtering
-        if selected_year:
-            try:
-                year_int = int(selected_year)
-                # Filter by year first
-                sales = sales.filter(closing_date__year=year_int)
-                
-                if month:
-                    month_int = int(month)
-                    # Filter by month
-                    sales = sales.filter(closing_date__month=month_int)
-                    
-                    # Correctly filter salary_qs for the entire month
-                    start_date = datetime(year_int, month_int, 1, tzinfo=timezone.get_current_timezone())
-                    if month_int == 12:
-                        end_date = datetime(year_int + 1, 1, 1, tzinfo=timezone.get_current_timezone())
-                    else:
-                        end_date = datetime(year_int, month_int + 1, 1, tzinfo=timezone.get_current_timezone())
-                    
-                    salary_qs = salary_qs.filter(payment_datetime__gte=start_date, payment_datetime__lt=end_date)
-                else:
-                    # Filter salary_qs for the entire year if no month is selected
-                    salary_qs = salary_qs.filter(payment_datetime__year=year_int)
-
-            except (ValueError, TypeError):
-                selected_year = "" # Reset if year is not a valid integer
-        elif month:
-            # Filter by month only if year is 'All'
-            try:
-                month_int = int(month)
-                sales = sales.filter(closing_date__month=month_int)
-                salary_qs = salary_qs.filter(payment_datetime__month=month_int)
-            except (ValueError, TypeError):
-                pass # Ignore invalid month formats
-    # -------------------------------
-    # Подсчёты и группировки
-    # -------------------------------
     total_salary = sales.aggregate(total=Sum('salary'))['total'] or 0
     total_sales = sales.aggregate(total=Sum('sale'))['total'] or 0
-
-    # Filter expenses based on the same date range
-    expenses_qs = ProductionExpense.objects.all()
-    expenses_qs = expenses_qs.filter(expense_date__isnull=False)
-    if filter_type == 'date_range':
-        if date_from and date_to:
-            try:
-                date_start_naive = datetime.strptime(date_from, "%Y-%m-%d")
-                date_end_naive = datetime.strptime(date_to, "%Y-%m-%d")
-                date_start = timezone.make_aware(date_start_naive)
-                date_end = timezone.make_aware(datetime.combine(date_end_naive, datetime.max.time()))
-                expenses_qs = expenses_qs.filter(expense_date__gte=date_start, expense_date__lte=date_end)
-            except ValueError:
-                pass
-    else: # Default to month filtering
-        if selected_year:
-            try:
-                year_int = int(selected_year)
-                if month:
-                    month_int = int(month)
-                    start_date = datetime(year_int, month_int, 1, tzinfo=timezone.get_current_timezone())
-                    if month_int == 12:
-                        end_date = datetime(year_int + 1, 1, 1, tzinfo=timezone.get_current_timezone())
-                    else:
-                        end_date = datetime(year_int, month_int + 1, 1, tzinfo=timezone.get_current_timezone())
-                    expenses_qs = expenses_qs.filter(expense_date__gte=start_date, expense_date__lt=end_date)
-                else:
-                    expenses_qs = expenses_qs.filter(expense_date__year=year_int)
-            except (ValueError, TypeError):
-                pass
-        elif month:
-            try:
-                month_int = int(month)
-                expenses_qs = expenses_qs.filter(expense_date__month=month_int)
-            except (ValueError, TypeError):
-                pass
 
     total_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
@@ -471,9 +536,10 @@ def sales_list(request):
     for sale in sales:
         if sale.closing_date:
             ym_key = (sale.closing_date.year, sale.closing_date.month)
-            grouped_sales[ym_key]['sales'].append(sale)
-            grouped_sales[ym_key]['total_sale'] += sale.sale or 0
-            grouped_sales[ym_key]['total_salary'] += sale.salary or 0
+            row = cast(dict[str, Any], grouped_sales[ym_key])
+            row['sales'].append(sale)
+            row['total_sale'] += sale.sale or 0
+            row['total_salary'] += sale.salary or 0
 
     grouped_sales = dict(sorted(grouped_sales.items()))
 
@@ -514,7 +580,9 @@ def sales_list(request):
             month_label = f"{months[expense.expense_date.month]} {expense.expense_date.year}"
             monthly_expenses_grouped[month_label] += float(expense.amount or 0)
     
-    all_months_in_range = set(chart_labels)
+    # For the expenses chart we use the union of months from sales and expenses
+    all_expense_months_from_expenses = set(monthly_expenses_grouped.keys())
+    all_months_in_range = set(chart_labels) | all_expense_months_from_expenses
     expense_chart_labels = sorted(list(all_months_in_range), key=month_year_key)
     expense_chart_data_values = [monthly_expenses_grouped.get(month, 0) for month in expense_chart_labels]
     expense_chart_data = {
@@ -535,13 +603,17 @@ def sales_list(request):
             month_label = f"{months[expense.expense_date.month]} {expense.expense_date.year}"
             expense_type_grouped[str(expense.expense_type.name)][month_label] += float(expense.amount or 0)
 
+    # For the "Sales by managers" and "Salary" charts we use only months from sales
     all_sales_months = set(month for manager_data in manager_grouped.values() for month in manager_data)
+    # For the "Expense types" chart we use the union of months from sales and expenses
     all_expense_months = set(month for expense_data in expense_type_grouped.values() for month in expense_data)
     all_months = sorted(list(all_sales_months | all_expense_months), key=month_year_key)
+    # Separate list of months only for sales and salary charts (without months from expenses)
+    all_sales_only_months = sorted(list(all_sales_months), key=month_year_key)
 
     manager_chart_datasets = []
     for manager, monthly_sales in manager_grouped.items():
-        data = [monthly_sales.get(month, 0) for month in all_months]
+        data = [monthly_sales.get(month, 0) for month in all_sales_only_months]
         manager_chart_datasets.append({
             "label": manager,
             "data": data,
@@ -556,7 +628,7 @@ def sales_list(request):
         })
 
     chart_data_by_manager = {
-        "labels": all_months,
+        "labels": all_sales_only_months,
         "datasets": manager_chart_datasets
     }
 
@@ -568,14 +640,14 @@ def sales_list(request):
 
     salary_chart_datasets = []
     for manager, monthly_salary in salary_manager_grouped.items():
-        data = [monthly_salary.get(month, 0) for month in all_months]
+        data = [monthly_salary.get(month, 0) for month in all_sales_only_months]
         salary_chart_datasets.append({
             "label": manager,
             "data": data,
         })
 
     salary_chart_data_by_manager = {
-        "labels": all_months,
+        "labels": all_sales_only_months,
         "datasets": salary_chart_datasets
     }
     
@@ -586,11 +658,11 @@ def sales_list(request):
 
     sales_manager_ids = Sale.objects.values_list('manager_id', flat=True).distinct()
 
-    managers = BitrixUser.objects.filter(id__in=sales_manager_ids).annotate(
+    managers = CrmUser.objects.filter(id__in=sales_manager_ids).annotate(
         full_name=Concat(F('last_name'), Value(' '), F('name'), output_field=CharField())
     ).values_list('id', 'full_name').distinct()
-
-    # Все доступные года (не из отфильтрованных sales!)
+    
+    # All available years (not from the filtered sales queryset)
     years = Sale.objects.order_by().values_list('closing_date__year', flat=True).distinct()
     years = sorted(filter(None, years))
 
@@ -619,6 +691,7 @@ def sales_list(request):
     return render(request, 'salary/sales_list.html', context)
 
 
+
 def export_salary_excel(request):
     manager_id = request.GET.get('manager')
     month = request.GET.get('month')
@@ -626,42 +699,41 @@ def export_salary_excel(request):
 
     salary_qs = SalaryPayment.objects.select_related('manager').order_by('-payment_datetime')
 
-    # Определяем, какой год выбран для фильтра
+    # Determine which year is selected for the filter
     current_year = datetime.now().year
     if year == "":
-        selected_year = ""  # Пользователь выбрал "Все"
+        selected_year = ""  # User selected "All"
     elif not year:
-        selected_year = str(current_year)  # По умолчанию текущий год
+        selected_year = str(current_year)  # Default to current year
     else:
-        selected_year = year  # Выбран конкретный год
+        selected_year = year  # A specific year was selected
 
-    # Применяем фильтры
+    # Apply filters
     if selected_year:
         try:
             y = int(selected_year)
             tz = timezone.get_current_timezone()
             if month:
                 m = int(month)
-                start = datetime(y, m, 1, tzinfo=tz)
-                end = datetime(y + 1, 1, 1, tzinfo=tz) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz)
+                start, end = get_month_date_range(y, m)
             else:
                 start = datetime(y, 1, 1, tzinfo=tz)
                 end = datetime(y + 1, 1, 1, tzinfo=tz)
             salary_qs = salary_qs.filter(payment_datetime__gte=start, payment_datetime__lt=end)
         except (ValueError, TypeError):
-            # Игнорируем некорректные значения года/месяца
+            # Ignore invalid year/month values
             pass
 
     if manager_id:
         try:
             salary_qs = salary_qs.filter(manager_id=int(manager_id))
         except (ValueError, TypeError):
-            # Игнорируем некорректный ID менеджера
+            # Ignore invalid manager ID
             pass
 
-    headers = ["Менеджер", "Дата выплаты", "Сумма"]
-    title = "Выплаты"
-    filename_prefix = "Выплата ЗП"
+    headers = [gettext_lazy("Manager"), gettext_lazy("Payment date"), gettext_lazy("Amount")]
+    title = gettext_lazy("Payments")
+    filename_prefix = "Salary_payments"
 
     def salary_row_data_extractor(payment):
         manager_name = f"{payment.manager.last_name} {payment.manager.name}"
@@ -686,16 +758,16 @@ def salary_payment_list(request):
     # This ensures the filter options are always complete.
     all_payments_for_filters = SalaryPayment.objects.all()
     all_payment_manager_ids = all_payments_for_filters.values_list('manager_id', flat=True).distinct()
-    all_managers_for_filter = BitrixUser.objects.filter(id__in=all_payment_manager_ids).annotate(
+    all_managers_for_filter = CrmUser.objects.filter(id__in=all_payment_manager_ids).annotate(
         full_name=Concat(F('last_name'), Value(' '), F('name'), output_field=CharField())
     ).values_list('id', 'full_name')
-    # Доступные годы
+    # Available years
     years = sorted({dt.year for dt in all_payments_for_filters.values_list('payment_datetime', flat=True) if dt}, reverse=True)
     # --- END FIX ---
 
     payments = SalaryPayment.objects.select_related('manager').order_by('-payment_datetime')
     
-    # Фильтрация по менеджеру
+    # Filter by manager
     if manager_id:
         payments = payments.filter(manager_id=manager_id)
     
@@ -704,22 +776,16 @@ def salary_payment_list(request):
     # -------------------------------
     current_year = datetime.now().year
     if year == "":
-        selected_year = ""          # пользователь выбрал "Все"
+        selected_year = ""          # user selected "All"
     elif not year:
-        selected_year = str(current_year)   # первый заход — по умолчанию текущий год
+        selected_year = str(current_year)   # first load — default to current year
     else:
-        selected_year = year        # выбран конкретный год
+        selected_year = year        # a specific year was selected
     
     if filter_type == 'date_range':
-        if date_from and date_to:
-            try:
-                date_start_naive = datetime.strptime(date_from, "%Y-%m-%d")
-                date_end_naive = datetime.strptime(date_to, "%Y-%m-%d")
-                date_start = timezone.make_aware(date_start_naive)
-                date_end = timezone.make_aware(datetime.combine(date_end_naive, datetime.max.time()))
-                payments = payments.filter(payment_datetime__gte=date_start, payment_datetime__lte=date_end)
-            except ValueError:
-                pass  # Ignore invalid date formats
+        date_start, date_end = parse_date_range(date_from, date_to)
+        if date_start and date_end:
+            payments = payments.filter(payment_datetime__gte=date_start, payment_datetime__lte=date_end)
     else:  # Default to month filtering
         if selected_year != "":
             try:
@@ -727,9 +793,7 @@ def salary_payment_list(request):
                 if month:
                     try:
                         m = int(month)
-                        tz = timezone.get_current_timezone()
-                        start = datetime(y, m, 1, tzinfo=tz)
-                        end = datetime(y + 1, 1, 1, tzinfo=tz) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz)
+                        start, end = get_month_date_range(y, m)
                         payments = payments.filter(payment_datetime__gte=start, payment_datetime__lt=end)
                     except (ValueError, TypeError):
                         pass  # Ignore invalid month formats
@@ -747,8 +811,9 @@ def salary_payment_list(request):
     for payment in payments:
         if payment.payment_datetime:
             ym_key = (payment.payment_datetime.year, payment.payment_datetime.month)
-            grouped_payments[ym_key]['payments'].append(payment)
-            grouped_payments[ym_key]['total_amount'] += payment.amount or 0
+            row = cast(dict[str, Any], grouped_payments[ym_key])
+            row['payments'].append(payment)
+            row['total_amount'] += payment.amount or 0
             
     grouped_payments = dict(sorted(grouped_payments.items()))
 
@@ -756,8 +821,7 @@ def salary_payment_list(request):
         'payments': payments,
         'grouped_payments': grouped_payments,
         'managers': all_managers_for_filter,
-        'months': {1:'Январь',2:'Февраль',3:'Март',4:'Апрель',5:'Май',6:'Июнь',
-                   7:'Июль',8:'Август',9:'Сентябрь',10:'Октябрь',11:'Ноябрь',12:'Декабрь'},
+        'months': get_months(),
         'years': years,
         'request': request,
         'selected_year': selected_year,
@@ -783,7 +847,7 @@ def production_expense_list(request):
 
     expenses = ProductionExpense.objects.select_related('employee', 'expense_type').order_by('-expense_date')
 
-    # Фильтрация по сотруднику и типу расходов
+    # Filter by employee and expense type
     if employee_id:
         expenses = expenses.filter(employee_id=employee_id)
     
@@ -793,48 +857,34 @@ def production_expense_list(request):
     # -------------------------------
     # Date Filtering Logic
     # -------------------------------
-    req_year = year
-    req_month = month
+    # By default, no year is selected (which means "All")
+    selected_year = year if year is not None else '' 
 
-    if req_year == "" or req_year is None:
-        selected_year = ""
-    else:
-        selected_year = req_year
-
-    if filter_type == 'date_range':
-        if date_from and date_to:
+    # On initial load (no filter params), default to current year.
+    is_initial_load = all(p is None for p in [employee_id, expense_type_id, month, year, date_from, date_to])
+    if is_initial_load:
+        current_year = datetime.now().year
+        expenses = expenses.filter(expense_date__year=current_year)
+        selected_year = str(current_year)
+    elif filter_type == 'date_range':
+        date_start, date_end = parse_date_range(date_from, date_to)
+        if date_start and date_end:
+            expenses = expenses.filter(expense_date__gte=date_start, expense_date__lte=date_end)
+        selected_year = '' # Reset year selection in date range mode
+    else:  # Month/year filtering
+        # Filter by year if a specific year is chosen (not 'All', which is '')
+        if selected_year and selected_year.isdigit():
             try:
-                date_start_naive = datetime.strptime(date_from, "%Y-%m-%d")
-                date_end_naive = datetime.strptime(date_to, "%Y-%m-%d")
-                date_start = timezone.make_aware(date_start_naive)
-                date_end = timezone.make_aware(datetime.combine(date_end_naive, datetime.max.time()))
-                expenses = expenses.filter(expense_date__gte=date_start, expense_date__lte=date_end)
-            except ValueError:
-                pass  # Ignore invalid date formats
-    else:  # Default to month filtering
-        if selected_year != "":
-            try:
-                y = int(selected_year)
-                if month:
-                    try:
-                        m = int(month)
-                        tz = timezone.get_current_timezone()
-                        start = datetime(y, m, 1, tzinfo=tz)
-                        end = datetime(y + 1, 1, 1, tzinfo=tz) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz)
-                        expenses = expenses.filter(expense_date__gte=start, expense_date__lt=end)
-                    except (ValueError, TypeError):
-                        pass  # Ignore invalid month formats
-                else:
-                    tz = timezone.get_current_timezone()
-                    start = datetime(y, 1, 1, tzinfo=tz)
-                    end = datetime(y + 1, 1, 1, tzinfo=tz)  
-                    expenses = expenses.filter(expense_date__gte=start, expense_date__lt=end)
+                expenses = expenses.filter(expense_date__year=int(selected_year))
             except (ValueError, TypeError):
-                pass  # Ignore invalid year formats
-        elif not req_year and not req_month:
-            current_year = datetime.now().year
-            expenses = expenses.filter(expense_date__year=current_year)
-            selected_year = str(current_year)
+                pass # Ignore invalid year
+        
+        # Filter by month if a specific month is chosen
+        if month and month.isdigit():
+            try:
+                expenses = expenses.filter(expense_date__month=int(month))
+            except (ValueError, TypeError):
+                pass # Ignore invalid month
 
     total_paid = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
     
@@ -842,8 +892,9 @@ def production_expense_list(request):
     for expense in expenses:
         if expense.expense_date:
             ym_key = (expense.expense_date.year, expense.expense_date.month)
-            grouped_expenses[ym_key]['expenses'].append(expense)
-            grouped_expenses[ym_key]['total_amount'] += expense.amount or 0
+            row = cast(dict[str, Any], grouped_expenses[ym_key])
+            row['expenses'].append(expense)
+            row['total_amount'] += expense.amount or 0
             
     grouped_expenses = dict(sorted(grouped_expenses.items()))
 
@@ -852,8 +903,7 @@ def production_expense_list(request):
         'grouped_expenses': grouped_expenses,
         'employees': all_employees,
         'expense_types': all_expense_types,
-        'months': {1:'Январь',2:'Февраль',3:'Март',4:'Апрель',5:'Май',6:'Июнь',
-                   7:'Июль',8:'Август',9:'Сентябрь',10:'Октябрь',11:'Ноябрь',12:'Декабрь'},
+        'months': get_months(),
         'years': years,
         'request': request,
         'selected_year': selected_year,
@@ -867,11 +917,7 @@ def production_expense_create(request):
     if request.method == 'POST':
         post_data = request.POST.copy()
         if 'amount' in post_data:
-            amt = post_data['amount']
-            # Remove regular space, no-break space (\u00A0), and narrow no-break space (\u202F)
-            amt = amt.replace(' ', '').replace('\xa0', '').replace('\u00a0', '').replace('\u202f', '')
-            amt = amt.replace(',', '.')
-            post_data['amount'] = amt
+            post_data['amount'] = normalize_amount(post_data['amount'])
         form = ProductionExpenseForm(post_data)
         if form.is_valid():
             expense = form.save(commit=False)
@@ -880,7 +926,7 @@ def production_expense_create(request):
             expense.save()
             if is_ajax(request):
                 return JsonResponse({'success': True})
-            messages.success(request, "Расход успешно добавлен.")
+            messages.success(request, gettext_lazy("Expense has been added successfully."))
             return redirect('production_expense_list')
         else:
             if is_ajax(request):
@@ -889,9 +935,15 @@ def production_expense_create(request):
         form = ProductionExpenseForm()
     
     if is_ajax(request):
-        return render(request, 'salary/production_expense_form_content.html', {'form': form, 'title': 'Добавить расход'})
+        return render(request, 'salary/production_expense_form_content.html', {
+            'form': form,
+            'title': gettext_lazy("Add expense"),
+        })
     
-    return render(request, 'salary/production_expense_form.html', {'form': form, 'title': 'Добавить расход'})
+    return render(request, 'salary/production_expense_form.html', {
+        'form': form,
+        'title': gettext_lazy("Add expense"),
+    })
 
 @login_required
 @admin_required
@@ -902,14 +954,9 @@ def salary_payment_edit(request, pk):
         remaining_salary = _get_remaining_salary_for_manager(payment.manager.id)
 
     if request.method == 'POST':
-        # Копируем POST и убираем пробелы в сумме
         post_data = request.POST.copy()
         if 'amount' in post_data:
-            amt = post_data['amount']
-            amt = amt.replace(' ', '').replace('\xa0', '').replace('\u00a0', '').replace('\u202f', '')
-            amt = amt.replace(',', '.')
-            post_data['amount'] = amt
-
+            post_data['amount'] = normalize_amount(post_data['amount'])
         form = SalaryPaymentForm(post_data, instance=payment)
 
         if form.is_valid():
@@ -926,7 +973,7 @@ def salary_payment_edit(request, pk):
                 return JsonResponse({'success': False, 'errors': form.errors})
     else:
         form = SalaryPaymentForm(instance=payment)
-        # Отображаем сумму с пробелами (для удобства пользователя)
+        # Display amount with spaces (for user convenience)
         if payment.amount is not None:
             form.initial['amount'] = f"{payment.amount:,.2f}".replace(",", " ")
         if payment.payment_datetime:
@@ -937,14 +984,14 @@ def salary_payment_edit(request, pk):
             'form': form,
             'payment': payment,
             'action_url': reverse('salary_payment_edit', kwargs={'pk': pk}),
-            'title': f'Редактировать выплату №{payment.pk}',
+            'title': gettext_lazy("Edit payment #%(pk)s") % {"pk": payment.pk},
             'remaining_salary': remaining_salary
         })
 
-    return render(request, 'salary/salary_payment_edit.html', {
+    return render(request, 'salary/salary_payment_form.html', {
         'form': form,
         'payment': payment,
-        'title': f'Редактировать выплату №{payment.pk}',
+        'title': gettext_lazy("Edit payment #%(pk)s") % {"pk": payment.pk},
         'remaining_salary': remaining_salary
     })
 
@@ -955,13 +1002,13 @@ def production_expense_edit(request, pk):
     if request.method == 'POST':
         post_data = request.POST.copy()
         if 'amount' in post_data:
-            post_data['amount'] = post_data['amount'].replace(' ', '').replace(',', '.')
+            post_data['amount'] = normalize_amount(post_data['amount'])
         form = ProductionExpenseForm(post_data, instance=expense)
         if form.is_valid():
             form.save()
             if is_ajax(request):
                 return JsonResponse({'success': True})
-            messages.success(request, "Расход успешно обновлен.")
+            messages.success(request, gettext_lazy("Expense has been updated successfully."))
             return redirect('production_expense_list')
         else:
             if is_ajax(request):
@@ -972,9 +1019,15 @@ def production_expense_edit(request, pk):
             form.initial['amount'] = f"{expense.amount:,.2f}".replace(",", " ")
 
     if is_ajax(request):
-        return render(request, 'salary/production_expense_form_content.html', {'form': form, 'title': f'Редактировать расход №{expense.pk}'})
+        return render(request, 'salary/production_expense_form_content.html', {
+            'form': form,
+            'title': gettext_lazy("Edit expense #%(pk)s") % {"pk": expense.pk},
+        })
 
-    return render(request, 'salary/production_expense_form.html', {'form': form, 'title': f'Редактировать расход №{expense.pk}'})
+    return render(request, 'salary/production_expense_form.html', {
+        'form': form,
+        'title': gettext_lazy("Edit expense #%(pk)s") % {"pk": expense.pk},
+    })
 
 @login_required
 @admin_required
@@ -1003,8 +1056,7 @@ def export_production_excel(request):
             tz = timezone.get_current_timezone()
             if month:
                 m = int(month)
-                start = datetime(y, m, 1, tzinfo=tz)
-                end = datetime(y + 1, 1, 1, tzinfo=tz) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz)
+                start, end = get_month_date_range(y, m)
             else:
                 start = datetime(y, 1, 1, tzinfo=tz)
                 end = datetime(y + 1, 1, 1, tzinfo=tz)
@@ -1024,9 +1076,15 @@ def export_production_excel(request):
     if expense_type_id:
         expenses = expenses.filter(expense_type_id=expense_type_id)
 
-    headers = ["Сотрудник", "Вид расходов", "Дата", "Сумма", "Комментарий"]
-    title = "Расходы на производство"
-    filename_prefix = "Расходы_на_производство"
+    headers = [
+        gettext_lazy("Employee"),
+        gettext_lazy("Expense type"),
+        gettext_lazy("Date"),
+        gettext_lazy("Amount"),
+        gettext_lazy("Comment"),
+    ]
+    title = gettext_lazy("Production expenses")
+    filename_prefix = "Production_expenses"
     column_widths = {1: 25, 2: 25, 3: 20, 4: 18, 5: 50}
 
     def expense_row_data_extractor(expense):
@@ -1043,7 +1101,11 @@ def export_production_excel(request):
 def _generate_excel_response(queryset, headers, title, filename_prefix, row_data_extractor, column_widths=None):
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = title
+    if ws is None:
+        raise ValueError("Workbook has no active sheet")
+    title_str = force_str(title) if title is not None else "Sheet1"
+    title_str = re.sub(r'[\\*?:/\[\]]', '_', title_str).strip()
+    ws.title = (title_str or "Sheet1")[:31]
 
     header_font = Font(name="Calibri", size=14, bold=True, color="333333")
     thin_border = Border(
@@ -1055,7 +1117,7 @@ def _generate_excel_response(queryset, headers, title, filename_prefix, row_data
     header_colors = ["E0E0E0", "D0D0D0", "C0C0C0", "B0B0B0", "A0A0A0"] # Extend as needed
 
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
+        cell = ws.cell(row=1, column=col_num, value=force_str(header))
         cell.font = header_font
         fill_color = header_colors[col_num-1] if col_num-1 < len(header_colors) else "C0C0C0"
         cell.fill = PatternFill("solid", fgColor=fill_color)
@@ -1070,21 +1132,21 @@ def _generate_excel_response(queryset, headers, title, filename_prefix, row_data
             cell = ws.cell(row=row_idx, column=col_num, value=value)
             cell.fill = PatternFill("solid", fgColor=fill_color)
             cell.border = thin_border
-            cell.font = Font(name="Calibri", size=14) # Default font size, can be parameterized
+            cell.font = Font(name="Calibri", size=14)
 
             if isinstance(value, (int, float, Decimal)):
                 cell.number_format = '# ##0.00'
                 cell.alignment = Alignment(horizontal="right")
-            elif isinstance(value, datetime):
-                cell.number_format = 'DD.MM.YYYY HH:MM'
-            
+
     if column_widths:
         for col_num, width in column_widths.items():
             ws.column_dimensions[get_column_letter(col_num)].width = width
     else:
         for column_cells in ws.columns:
             length = max(len(str(cell.value)) for cell in column_cells)
-            ws.column_dimensions[get_column_letter(column_cells[0].column)].width = length + 16
+            first_col = column_cells[0].column
+            col_letter = get_column_letter(first_col if first_col is not None else 1)
+            ws.column_dimensions[col_letter].width = length + 16
 
     today_file_str = timezone.localdate().strftime("%d-%m-%Y")
     filename = f"{filename_prefix}_{today_file_str}.xlsx"
@@ -1100,11 +1162,11 @@ def _generate_excel_response(queryset, headers, title, filename_prefix, row_data
 def _get_remaining_salary_for_manager(manager_id):
     """Helper function to calculate remaining salary for a given manager."""
     try:
-        manager = BitrixUser.objects.get(id=int(manager_id))
+        manager = CrmUser.objects.get(id=int(manager_id))
         total_salary = Sale.objects.filter(manager=manager).aggregate(Sum('salary'))['salary__sum'] or 0
         salary_paid = SalaryPayment.objects.filter(manager=manager).aggregate(Sum('amount'))['amount__sum'] or 0
         return total_salary - salary_paid
-    except (BitrixUser.DoesNotExist, ValueError, TypeError):
+    except (CrmUser.DoesNotExist, ValueError, TypeError):
         return None
 
 @login_required
@@ -1117,18 +1179,13 @@ def salary_payment_create(request):
         remaining_salary = _get_remaining_salary_for_manager(manager_id)
 
     if request.method == 'POST':
-        # Копируем POST и убираем пробелы в сумме
         post_data = request.POST.copy()
         if 'amount' in post_data:
-            amt = post_data['amount']
-            amt = amt.replace(' ', '').replace('\xa0', '').replace('\u00a0', '').replace('\u202f', '')
-            amt = amt.replace(',', '.')
-            post_data['amount'] = amt
-
+            post_data['amount'] = normalize_amount(post_data['amount'])
         form = SalaryPaymentForm(post_data)
         if form.is_valid():
             payment = form.save(commit=False)
-            # Если поле payment_datetime пустое, ставим текущее время
+            # If payment_datetime is empty, set the current time
             if not payment.payment_datetime:
                 payment.payment_datetime = timezone.now()
             payment.save()
@@ -1149,13 +1206,13 @@ def salary_payment_create(request):
             'form': form,
             'remaining_salary': remaining_salary,
             'action_url': reverse('salary_payment_create'),
-            'title': 'Добавить выплату'
+            'title': gettext_lazy("Add payment"),
         })
 
     return render(request, 'salary/salary_payment_form.html', {
         'form': form,
         'remaining_salary': remaining_salary,
-        'title': 'Добавить выплату'
+        'title': gettext_lazy("Add payment"),
     })
 
 
@@ -1177,7 +1234,9 @@ def employee_create(request):
             employee = form.save()
             if is_ajax(request):
                 return JsonResponse({'success': True, 'id': employee.id, 'name': employee.name})
-            messages.success(request, f"Сотрудник '{form.cleaned_data['name']}' успешно добавлен.")
+            messages.success(request, gettext_lazy("Employee '%(name)s' has been added successfully.") % {
+                "name": form.cleaned_data['name']
+            })
             return redirect('production_expense_list')
         else:
             if is_ajax(request):
@@ -1186,9 +1245,16 @@ def employee_create(request):
         form = EmployeeForm()
     
     if is_ajax(request):
-        return render(request, 'salary/simple_form_content.html', {'form': form, 'title': 'Добавить сотрудника', 'action_url': reverse('employee_create')})
+        return render(request, 'salary/simple_form_content.html', {
+            'form': form,
+            'title': gettext_lazy("Add employee"),
+            'action_url': reverse('employee_create'),
+        })
     
-    return render(request, 'salary/simple_form.html', {'form': form, 'title': 'Добавить сотрудника'})
+    return render(request, 'salary/simple_form.html', {
+        'form': form,
+        'title': gettext_lazy("Add employee"),
+    })
 
 @login_required
 @admin_required
@@ -1199,7 +1265,9 @@ def expense_type_create(request):
             expense_type = form.save()
             if is_ajax(request):
                 return JsonResponse({'success': True, 'id': expense_type.id, 'name': expense_type.name})
-            messages.success(request, f"Вид расходов '{form.cleaned_data['name']}' успешно добавлен.")
+            messages.success(request, gettext_lazy("Expense type '%(name)s' has been added successfully.") % {
+                "name": form.cleaned_data['name']
+            })
             return redirect('production_expense_list')
         else:
             if is_ajax(request):
@@ -1208,33 +1276,19 @@ def expense_type_create(request):
         form = ExpenseTypeForm()
 
     if is_ajax(request):
-        return render(request, 'salary/simple_form_content.html', {'form': form, 'title': 'Добавить вид расходов', 'action_url': reverse('expense_type_create')})
+        return render(request, 'salary/simple_form_content.html', {
+            'form': form,
+            'title': gettext_lazy("Add expense type"),
+            'action_url': reverse('expense_type_create'),
+        })
 
-    return render(request, 'salary/simple_form.html', {'form': form, 'title': 'Добавить вид расходов'})
+    return render(request, 'salary/simple_form.html', {
+        'form': form,
+        'title': gettext_lazy("Add expense type"),
+    })
 
 
-@login_required
-@admin_required
-def employee_edit(request, pk):
-    employee = get_object_or_404(Employee, pk=pk)
-    if request.method == 'POST':
-        form = EmployeeForm(request.POST, instance=employee)
-        if form.is_valid():
-            form.save()
-            if is_ajax(request):
-                return JsonResponse({'success': True})
-            messages.success(request, "Сотрудник успешно обновлен.")
-            return redirect('production_expense_list')
-        else:
-            if is_ajax(request):
-                return JsonResponse({'success': False, 'errors': form.errors})
-    else:
-        form = EmployeeForm(instance=employee)
 
-    if is_ajax(request):
-        return render(request, 'salary/simple_form_content.html', {'form': form, 'title': f'Редактировать сотрудника'})
-
-    return render(request, 'salary/simple_form.html', {'form': form, 'title': f'Редактировать сотрудника'})
 
 
 @login_required
@@ -1248,13 +1302,13 @@ def register(request):
             form.save()
             if is_ajax(request):
                 return JsonResponse({'success': True})
-            messages.success(request, "Пользователь успешно зарегистрирован.")
+            messages.success(request, gettext_lazy("User has been registered successfully."))
             return redirect("users_list")
         else:
             if is_ajax(request):
                 return JsonResponse({'success': False, 'errors': form.errors})
     else:
-        # Если есть manager_id - подставим в начальные данные формы
+        # If manager_id is provided, pre-fill it into the form's initial data
         initial_data = {}
         if manager_id:
             initial_data['manager'] = manager_id
@@ -1269,36 +1323,42 @@ def register(request):
 @login_required
 @admin_required
 def users_list(request):
-    users = BitrixUser.objects.select_related('django_user').all()
+    users = CrmUser.objects.select_related('django_user').all()
     return render(request, 'salary/users_list.html', {'users': users})
 
 
 @login_required
 @admin_required
 def delete_user_account(request, manager_id):
-    manager = get_object_or_404(BitrixUser, id=manager_id)
+    manager = get_object_or_404(CrmUser, id=manager_id)
     if manager.django_user:
-        # Удаляем связанного пользователя django (логин и пароль)
+        # Delete the related Django user (login and password)
         # The on_delete=models.SET_NULL on the User.django_user field
         # automatically handles setting the field to None.
         manager.django_user.delete()
+        
+        if manager.is_admin:
+            CrmUser.objects.filter(pk=manager.pk).update(is_admin=False)
 
-        messages.success(request, f"У пользователя {manager.last_name} {manager.name} удалены логин и пароль.")
+        messages.success(request, gettext_lazy("Login and password have been removed for user %(last)s %(first)s.") % {
+            "last": manager.last_name,
+            "first": manager.name,
+        })
     else:
-        messages.warning(request, "У этого менеджера нет зарегистрированного пользователя.")
+        messages.warning(request, gettext_lazy("This manager does not have a registered user."))
     return redirect('users_list')
 
 def register_with_manager(request, manager_id):
     """
-    Переходим на страницу регистрации, передавая id менеджера.
-    На странице регистрации этот id можно использовать, чтобы
-    привязать создаваемого django_user к выбранному менеджеру.
+    Redirect to the registration page, passing the manager id.
+    On the registration page this id can be used to
+    link the created django_user to the selected manager.
     """
     return redirect(f"/register?manager_id={manager_id}")
 
 
-# AI Analysis views
-ai_analysis_view = ai_views.ai_analysis_view
-ai_analyze_data = ai_views.ai_analyze_data
-ai_generate_chart = ai_views.ai_generate_chart
-ai_check_model_status = ai_views.ai_check_model_status
+# AI Analysis views — DISABLED: local neural-network hooks commented out
+# ai_analysis_view = ai_views.ai_analysis_view
+# ai_analyze_data = ai_views.ai_analyze_data
+# ai_generate_chart = ai_views.ai_generate_chart
+# ai_check_model_status = ai_views.ai_check_model_status

@@ -3,12 +3,15 @@
 {% now "U" as now %}
 {% load static %}
 {% load widget_tweaks %}
+{% load i18n %}
+
+{% block title %} | {% trans "Registration" %}{% endblock %}
 
 
 
 {% block body %}
-<div class="container mt-5" style="max-width: 500px;">
-    <h4 class="mb-4 text-center">Регистрация</h4>
+<div class="form-container">
+    <h4 class="mb-4 text-center">{% trans "Registration" %}</h4>
     {% include 'salary/register_form_content.html' with is_modal=False action_url=request.get_full_path %}
 
 </div>

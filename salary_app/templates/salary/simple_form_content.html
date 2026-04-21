@@ -1,4 +1,5 @@
 {% load widget_tweaks %}
+{% load i18n %}
 <div class="page-font-small">
     <form method="post" action="{{ action_url }}" class="{% if is_modal %}child-form{% endif %}">
     {% csrf_token %}
@@ -18,11 +19,11 @@
 
     <div class="d-flex justify-content-end gap-2">
         {% if is_modal %}
-            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
         {% else %}
-            <a href="{{ request.META.HTTP_REFERER|default:'production_expense_list' }}" class="btn btn-secondary">Отмена</a>
+            <a href="{{ request.META.HTTP_REFERER|default:'production_expense_list' }}" class="btn btn-secondary">{% trans "Cancel" %}</a>
         {% endif %}
-        <button type="submit" class="btn btn-primary {% if is_modal %}btn-sm{% endif %}">Сохранить</button>
+        <button type="submit" class="btn btn-primary {% if is_modal %}btn-sm{% endif %}">{% trans "Save" %}</button>
     </div>
     </form>
 </div>

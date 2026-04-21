@@ -1,6 +1,9 @@
 {% extends "salary/index.html" %}
 {% load custom_filters %}
 {% load static %}
+{% load i18n %}
+
+{% block title %} | {% trans "User list" %}{% endblock %}
 
 {% block head %}
 {{ block.super }}
@@ -12,20 +15,20 @@
 <div class="row page-font-small gx-2">
     <div class="col-lg-12">
         <div class="card sales-report-card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-                <h5 class="mb-0"><i class="bi bi-people me-2"></i>Список пользователей</h5>
+            <div class="card-header d-flex justify-content-between align-items-center sales-report-header">
+                <h5 class="mb-0"><i class="bi bi-people me-2"></i>{% trans "User list" %}</h5>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="bg-light text-muted">
+                    <table class="table table-hover align-middle mb-0 users-list-table">
+                        <thead>
                             <tr>
                                 <th class="text-center align-middle">ID</th>
-                                <th class="align-middle">Фамилия</th>
-                                <th class="align-middle">Имя</th>
-                                <th class="align-middle">Логин</th>
-                                <th class="text-center align-middle">Админ</th>
-                                <th class="text-center align-middle">Действия</th>
+                                <th class="align-middle">{% trans "Last name" %}</th>
+                                <th class="align-middle">{% trans "First name" %}</th>
+                                <th class="align-middle">{% trans "Login" %}</th>
+                                <th class="text-center align-middle">{% trans "Admin" %}</th>
+                                <th class="text-center align-middle">{% trans "Actions" %}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -38,17 +41,18 @@
                                 <td class="text-center">{% if user.is_admin %}✅{% else %}<span style="color:red;">❌</span>{% endif %}</td>
                                 <td class="text-center">
                                     {% if user.django_user %}
-                                        <!-- Кнопка удалить -->
+                                        <!-- Delete button -->
                                         <form action="{% url 'delete_user_account' user.id %}" method="post" 
                                             style="display:inline;" 
-                                            onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+                                            data-confirm-message="{% trans 'Are you sure you want to delete this user?' %}"
+                                            onsubmit="return confirm(this.dataset.confirmMessage);">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-danger btn-sm">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
                                     {% else %}
-                                        <!-- Кнопка добавить -->
+                                        <!-- Add button -->
                                         <a href="{% url 'register' %}?manager_id={{ user.id }}" class="btn btn-success btn-sm open-register-modal">
                                             <i class="bi bi-plus-circle"></i>
                                         </a>
@@ -58,7 +62,7 @@
                             {% empty %}
                             <tr>
                                 <td colspan="6" class="text-center text-muted p-5">
-                                    <h5 class="text-muted">Нет пользователей для отображения</h5>
+                                    <h5 class="text-muted">{% trans "No users to display" %}</h5>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -75,11 +79,11 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header modal-header-custom py-2">
-        <h5 class="modal-title" id="registerModalLabel">Регистрация</h5>
+        <h5 class="modal-title" id="registerModalLabel">{% trans "Registration" %}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        ...
+        <div class="text-center text-muted py-3">{% trans "Loading..." %}</div>
       </div>
     </div>
   </div>
@@ -88,43 +92,5 @@
 
 {% block script %}
 {{ block.super }}
-<script>
-$(document).ready(function() {
-    const registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
-
-    $('.open-register-modal').on('click', function(e) {
-        e.preventDefault();
-        const url = $(this).attr('href');
-        $.ajax({
-            url: url,
-            success: function(data) {
-                $('#registerModal .modal-body').html(data);
-                registerModal.show();
-            }
-        });
-    });
-
-    $(document).on('submit', '#registerModal .register-form', function(e) {
-        e.preventDefault();
-        $.ajax({
-            type: 'POST',
-            url: $(this).attr('action'),
-            data: $(this).serialize(),
-            success: function(data) {
-                if (data.success) {
-                    registerModal.hide();
-                    location.reload();
-                } else {
-                    // Handle errors
-                    let error_html = '';
-                    for (const field in data.errors) {
-                        error_html += `<p class="text-danger">${field}: ${data.errors[field].join(', ')}</p>`
-                    }
-                    $('#registerModal .modal-body').prepend(error_html);
-                }
-            }
-        });
-    });
-});
-</script>
+<script src="{% static 'salary/inbox.js' %}?v={{ now }}"></script>
 {% endblock %}

@@ -1,0 +1,15 @@
+{% load i18n %}
+<div class="filter-actions d-flex gap-2">
+    <button type="submit" class="btn btn-primary btn-sm filter-action-btn" id="applyFilterBtn">
+        <span class="btn-content">
+            <i class="bi bi-search me-1"></i>{% trans "Apply" %}
+        </span>
+        <span class="btn-loading d-none">
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            {% trans "Loading..." %}
+        </span>
+    </button>
+    <a href="{{ filter_reset_url }}" class="btn btn-secondary btn-sm filter-action-btn">
+        <i class="bi bi-x-lg me-1"></i>{% trans "Reset" %}
+    </a>
+</div>

@@ -1,5 +1,8 @@
 {% extends "salary/index.html" %}
+{% load i18n %}
 {% load widget_tweaks %}
+
+{% block title %} | {{ title }}{% endblock %}
 
 {% block head %}
 {{ block.super }}
@@ -8,26 +11,22 @@
 {% endblock %}
 
 {% block body %}
-<div class="row page-font-small gx-2">
-    <div class="col-lg-12">
-        <div class="card sales-report-card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-                <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>{{ title }}</h5>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    {% with add_button_class="btn btn-outline-secondary" is_modal=False is_page=True %}
-                        {% include "salary/_production_expense_form_fields.html" %}
-                    {% endwith %}
+<div class="form-container">
+    <h4 class="mb-4 text-center">{{ title }}</h4>
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                {% with add_button_class="btn btn-outline-secondary" is_modal=False is_page=True %}
+                    {% include "salary/_production_expense_form_fields.html" %}
+                {% endwith %}
 
-                    <div class="d-flex justify-content-end gap-2">
-                      <a href="{% url 'production_expense_list' %}" class="btn btn-secondary btn-sm"><i class="bi bi-x-lg me-1"></i>Отмена</a>
-                      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
-                    </div>
-                  </form>
-            </div>
+                <div class="d-flex justify-content-end gap-2">
+                  <a href="{% url 'production_expense_list' %}" class="btn btn-secondary btn-sm"><i class="bi bi-x-lg me-1"></i>{% trans "Cancel" %}</a>
+                  <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>{% trans "Save" %}</button>
+                </div>
+              </form>
         </div>
     </div>
 </div>

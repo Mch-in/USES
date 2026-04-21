@@ -1,0 +1,27 @@
+{% load i18n %}
+{% if user.is_authenticated %}
+  <a class="{{ link_class }} {% if request.resolver_match.url_name == 'sales_list' %}active{% endif %}" href="{% url 'sales_list' %}" {% if show_tooltips %}data-tooltip="{% trans 'Home' %}"{% endif %}>
+    <i class="bi bi-house-door"></i>
+    <span>{% trans "Home" %}</span>
+  </a>
+{% endif %}
+{% if is_admin %}
+  <a class="{{ link_class }} {% if request.resolver_match.url_name == 'production_expense_list' %}active{% endif %}" href="{% url 'production_expense_list' %}" {% if show_tooltips %}data-tooltip="{% trans 'Expenses' %}"{% endif %}>
+    <i class="bi bi-receipt"></i>
+    <span>{% trans "Expenses" %}</span>
+  </a>
+  <a class="{{ link_class }} {% if request.resolver_match.url_name == 'salary_payment_list' %}active{% endif %}" href="{% url 'salary_payment_list' %}" {% if show_tooltips %}data-tooltip="{% trans 'Salary' %}"{% endif %}>
+    <i class="bi bi-cash-coin"></i>
+    <span>{% trans "Salary" %}</span>
+  </a>
+{% endif %}
+{% if user.is_authenticated %}
+  <a class="{{ link_class }} {% if request.resolver_match.url_name == 'ai_analysis' %}active{% endif %}" href="{% url 'ai_analysis' %}" {% if show_tooltips %}data-tooltip="AI"{% endif %}>
+    <i class="bi bi-robot"></i>
+    <span>AI</span>
+  </a>
+  <a class="{{ link_class }} {% if request.resolver_match.url_name == 'ai_analysis_history' %}active{% endif %}" href="{% url 'ai_analysis_history' %}" {% if show_tooltips %}data-tooltip="{% trans 'AI request log' %}"{% endif %}>
+    <i class="bi bi-journal-text"></i>
+    <span>{% trans "AI log" %}</span>
+  </a>
+{% endif %}

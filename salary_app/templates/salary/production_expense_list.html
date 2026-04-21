@@ -2,6 +2,9 @@
 {% load widget_tweaks %}
 {% load custom_filters %}
 {% load static %}
+{% load i18n %}
+
+{% block title %} | {% trans "Expenses" %}{% endblock %}
 
 {% block head %}
 {{ block.super }}
@@ -14,84 +17,53 @@
     <div class="col-lg-12">
         <!-- Filter Section -->
         <div class="filter-section no-print">
-            <form method="get" id="filterForm" class="row g-3 align-items-end">
-                <div class="col-md-12 col-lg-2 filter-field-wrapper">
-                    <label class="form-label">Сотрудник</label>
-                    <select name="employee" class="form-select form-select-sm">
-                        <option value="">Все</option>
-                        {% for employee in employees %}
-                        <option value="{{ employee.id }}" {% if request.GET.employee == employee.id|stringformat:"s" %}selected{% endif %}>{{ employee.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-12 col-lg-3 filter-field-wrapper">
-                    <label class="form-label">Вид расходов</label>
-                    <select name="expense_type" class="form-select form-select-sm">
-                        <option value="">Все</option>
-                        {% for type in expense_types %}
-                        <option value="{{ type.id }}" {% if request.GET.expense_type == type.id|stringformat:"s" %}selected{% endif %}>{{ type.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-12 col-lg-4 filter-field-wrapper">
-                    <div class="filter-toggle-group">
-                        <input type="radio" name="filter_type" value="month" id="filter_month" {% if request.GET.filter_type != "date_range" %}checked{% endif %} class="filter-toggle-input">
-                        <label for="filter_month" class="filter-toggle-btn {% if request.GET.filter_type != "date_range" %}active{% endif %}">По месяцу</label>
-                        <input type="radio" name="filter_type" value="date_range" id="filter_date_range" {% if request.GET.filter_type == "date_range" %}checked{% endif %} class="filter-toggle-input">
-                        <label for="filter_date_range" class="filter-toggle-btn {% if request.GET.filter_type == "date_range" %}active{% endif %}">По диапазону</label>
-                    </div>
-                    <div id="month_filter_group" class="input-group input-group-sm mt-2" {% if request.GET.filter_type == "date_range" %}style="display: none;"{% endif %}>
-                        <select name="month" class="form-select">
-                            <option value="">Все</option>
-                            {% for num, name in months.items %}
-                            <option value="{{ num }}" {% if request.GET.month == num|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
-                            {% endfor %}
-                        </select>
-                        <select name="year" class="form-select">
-                            <option value="" {% if selected_year == "" %}selected{% endif %}>Все</option>
-                            {% for y in years %}
-                            <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+            <form method="get" id="filterForm" class="g-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-auto filter-field-wrapper">
+                        <label class="form-label">{% trans "Сотрудник" %}</label>
+                        <select name="employee" class="form-select form-select-sm">
+                            <option value="">{% trans "Все" %}</option>
+                            {% for employee in employees %}
+                            <option value="{{ employee.id }}" {% if request.GET.employee == employee.id|stringformat:"s" %}selected{% endif %}>{{ employee.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div id="date_range_filter_group" class="input-group input-group-sm mt-2" {% if request.GET.filter_type != "date_range" %}style="display: none;"{% endif %}>
-                        {% now "Y-m-d" as today %}
-                        <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
-                        <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to|default:today }}">
+
+                    <div class="col-lg-auto filter-field-wrapper">
+                        <label class="form-label">{% trans "Вид расходов" %}</label>
+                        <select name="expense_type" class="form-select form-select-sm">
+                            <option value="">{% trans "Все" %}</option>
+                            {% for type in expense_types %}
+                            <option value="{{ type.id }}" {% if request.GET.expense_type == type.id|stringformat:"s" %}selected{% endif %}>{{ type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-lg-auto filter-field-wrapper">
+                        {% include 'salary/_date_filters.html' %}
                     </div>
                 </div>
-
-                <div class="col-md-12 col-lg-3 filter-actions-wrapper">
-                    <div class="filter-actions">
-                        <button type="submit" class="btn btn-primary btn-sm" id="applyFilterBtn">
-                            <span class="btn-content">
-                                <i class="bi bi-search me-1"></i>Применить
-                            </span>
-                            <span class="btn-loading d-none">
-                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                Загрузка...
-                            </span>
-                        </button>
-                        <a href="{% url 'production_expense_list' %}" class="btn btn-secondary btn-sm">
-                            <i class="bi bi-x-lg me-1"></i>Сбросить
-                        </a>
+                <div class="row g-3 mt-3">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-start align-items-center">
+                            {% url 'production_expense_list' as filter_reset_url %}
+                            {% include "salary/_filter_actions.html" %}
+                        </div>
                     </div>
                 </div>
             </form>
         </div>
 
-        <!-- Карта с таблицей и действиями -->
+        <!-- Card with table and actions -->
         <div class="card sales-report-card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-                <h5 class="mb-0"><i class="bi bi-table me-2"></i>Список расходов</h5>
+            <div class="card-header sales-report-header d-flex justify-content-between align-items-center py-2">
+                <h5 class="mb-0"><i class="bi bi-table me-2"></i>{% trans "Список расходов" %}</h5>
                 <div class="d-flex gap-2 no-print">
-                    <a href="{% url 'export_production_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success" data-bs-toggle="tooltip" title="Скачать отфильтрованный список в формате Excel">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Сохранить в Excel
+                    <a href="{% url 'export_production_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success" data-bs-toggle="tooltip" title="{% trans 'Скачать отфильтрованный список в формате Excel' %}">
+                        <i class="bi bi-file-earmark-excel me-1"></i> {% trans "Сохранить в Excel" %}
                     </a>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expenseModal" id="addExpenseBtn">
-                        <i class="bi bi-plus-circle me-1"></i> Добавить расход
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expenseModal" id="addExpenseBtn" data-url="{% url 'production_expense_create' %}">
+                        <i class="bi bi-plus-circle me-1"></i> {% trans "Add expense" %}
                     </button>
                 </div>
             </div>
@@ -103,9 +75,9 @@
                                 {% with year=month_num.0 month=month_num.1 %}
                                 <tr class="table-month-summary {% if forloop.counter|divisibleby:2 %}even-row-color{% else %}odd-row-color{% endif %}">
                                     <td colspan="4" class="text-start ps-3">{{ months|dict_get:month }} {{ year }}</td>
-                                    <td class="text-end fw-bold nowrap" style="padding-right: 1rem;">{{ data.total_amount|spaced_number }} ₽</td>
+                                    <td class="text-end fw-bold nowrap" style="padding-right: 1rem;">{{ data.total_amount|spaced_number }} ₴</td>
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-light rounded-pill toggle-btn" data-month="{{ year }}-{{ month }}">
+                                        <button type="button" class="btn btn-sm toggle-btn" data-month="{{ year }}-{{ month }}">
                                             <i class="bi bi-chevron-down"></i>
                                         </button>
                                     </td>
@@ -117,12 +89,12 @@
                                             <table class="table table-bordered align-middle mb-0 equal-width-table">
                                                 <thead class="bg-light text-muted">
                                                     <tr>
-                                                        <th class="sortable-header text-start align-middle" data-sort-key="0" data-sort-type="string"><span class="sort-text">Сотрудник</span><span class="sort-icon"></span></th>
-                                                        <th class="sortable-header text-start align-middle" data-sort-key="1" data-sort-type="string"><span class="sort-text">Вид расходов</span><span class="sort-icon"></span></th>
-                                                        <th class="sortable-header text-start align-middle" data-sort-key="2" data-sort-type="date"><span class="sort-text">Дата</span><span class="sort-icon"></span></th>
-                                                        <th class="sortable-header text-end align-middle" data-sort-key="3" data-sort-type="number"><span class="sort-text">Сумма</span><span class="sort-icon"></span></th>
-                                                        <th class="sortable-header text-start align-middle comment-cell" data-sort-key="4" data-sort-type="string"><span class="sort-text">Комментарий</span><span class="sort-icon"></span></th>
-                                                        <th class="text-center align-middle">Действия</th>
+                                                        <th class="sortable-header text-start align-middle" data-sort-key="0" data-sort-type="string"><span class="sort-text">{% trans "Сотрудник" %}</span><span class="sort-icon"></span></th>
+                                                        <th class="sortable-header text-start align-middle" data-sort-key="1" data-sort-type="string"><span class="sort-text">{% trans "Вид расходов" %}</span><span class="sort-icon"></span></th>
+                                                        <th class="sortable-header text-start align-middle" data-sort-key="2" data-sort-type="date"><span class="sort-text">{% trans "Дата" %}</span><span class="sort-icon"></span></th>
+                                                        <th class="sortable-header text-end align-middle" data-sort-key="3" data-sort-type="number"><span class="sort-text">{% trans "Сумма" %}</span><span class="sort-icon"></span></th>
+                                                        <th class="sortable-header text-start align-middle comment-cell" data-sort-key="4" data-sort-type="string"><span class="sort-text">{% trans "Комментарий" %}</span><span class="sort-icon"></span></th>
+                                                        <th class="text-center align-middle">{% trans "Actions" %}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -131,16 +103,16 @@
                                                         <td class="text-start">{{ expense.employee.name }}</td>
                                                         <td class="text-start">{{ expense.expense_type.name }}</td>
                                                         <td class="text-start">{{ expense.expense_date|date:"d.m.Y" }}</td>
-                                                        <td class="text-end nowrap">{{ expense.amount|spaced_number }} ₽</td>
+                                                        <td class="text-end nowrap">{{ expense.amount|spaced_number }} ₴</td>
                                                         <td class="text-start comment-cell" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="{{ expense.comment|escape|linebreaksbr }}">{{ expense.comment }}</td>
                                                         <td class="text-center">
-                                                            <button type="button" class="btn btn-sm btn-warning edit-expense-btn" data-bs-toggle="modal" data-bs-target="#expenseModal" data-url="{% url 'production_expense_edit' expense.id %}">
+                                                            <button type="button" class="btn btn-sm btn-warning edit-expense-btn" data-bs-toggle="modal" data-bs-target="#expenseModal" data-url="{% url 'production_expense_edit' expense.id %}" title="{% trans 'Редактировать расход' %}">
                                                                 <i class="bi bi-pencil-square"></i>
                                                             </button>
                                                             <button
                                                               type="button"
                                                               class="btn btn-sm btn-info print-expense-btn"
-                                                              data-bs-toggle="tooltip" title="Печать"
+                                                              data-bs-toggle="tooltip" title="{% trans 'Печать' %}"
                                                               data-pk="{{ expense.pk }}"
                                                               data-employee="{{ expense.employee.name }}"
                                                               data-expense-type="{{ expense.expense_type.name }}"
@@ -162,9 +134,9 @@
                                 {% endwith %}
                             {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center p-5">
-                                        <h5 class="text-muted">Нет данных для отображения</h5>
-                                        <p>Попробуйте изменить фильтры.</p>
+                                    <td colspan="6" class="text-center p-5 empty-table-message">
+                                        <h5>{% trans "Нет данных для отображения" %}</h5>
+                                        <p>{% trans "Попробуйте изменить фильтры." %}</p>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -174,7 +146,7 @@
             </div>
             {% if expenses %}
             <div class="card-footer text-end">
-                <strong>Итого: {{ total_paid|spaced_number }} ₽</strong>
+                <strong>{% blocktrans with total=total_paid|spaced_number %}Итого: {{ total }} ₴{% endblocktrans %}</strong>
             </div>
             {% endif %}
         </div>
@@ -182,15 +154,22 @@
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="expenseModal" tabindex="-1" aria-labelledby="expenseModalLabel" aria-hidden="true">
+<div
+  class="modal fade"
+  id="expenseModal"
+  tabindex="-1"
+  aria-labelledby="expenseModalLabel"
+  aria-hidden="true"
+  data-add-title="{% trans 'Add expense' %}"
+  data-edit-title="{% trans 'Edit expense' %}">
   <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header modal-header-custom py-2">
-        <h5 class="modal-title" id="expenseModalLabel">Добавить расход</h5>
+        <h5 class="modal-title" id="expenseModalLabel">{% trans "Add expense" %}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        ...
+        <div class="text-center text-muted py-3">{% trans "Loading..." %}</div>
       </div>
     </div>
   </div>
@@ -205,165 +184,16 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        ...
+        <div class="text-center text-muted py-3">{% trans "Loading..." %}</div>
       </div>
     </div>
   </div>
 </div>
 
-<div id="printExpenseArea" class="d-none">
-  <style>
-    .print-container {
-      font-family: 'Segoe UI', sans-serif;
-      padding: 20px;
-      max-width: 600px;
-      margin: auto;
-      border: 1px solid #000;
-    }
-    .print-container h3 { text-align: center; margin-bottom: 25px; }
-    .print-container .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; align-items: flex-start; }
-    .print-container .detail-row:last-child { border-bottom: none; }
-    .print-container .detail-label { font-weight: bold; color: #555; padding-right: 20px; }
-    .print-container .detail-value { text-align: right; }
-    .print-container .comment-value { white-space: pre-wrap; text-align: left; flex: 1; }
-    .print-container .signature-section { margin-top: 60px; display: flex; justify-content: flex-end; }
-    .print-container .signature-block { width: 45%; text-align: center; }
-    .print-container .signature-line { border-bottom: 1px solid #000; height: 25px; margin-bottom: 5px; }
-    .print-container .signature-caption { font-size: 0.8em; color: #555; }
-  </style>
-  <div class="print-container">
-    <h3>Подтверждение выплаты</h3>
-    <div class="detail-row"><span class="detail-label">Сотрудник:</span><span id="printExpenseEmployee" class="detail-value"></span></div>
-    <div class="detail-row"><span class="detail-label">Вид расходов:</span><span id="printExpenseType" class="detail-value"></span></div>
-    <div class="detail-row"><span class="detail-label">Дата:</span><span id="printExpenseDate" class="detail-value"></span></div>
-    <div class="detail-row"><span class="detail-label">Сумма:</span><span id="printExpenseAmount" class="detail-value"></span></div>
-    <div class="detail-row" id="printExpenseCommentRow" style="display: none;">
-        <span class="detail-label">Комментарий:</span>
-        <span id="printExpenseComment" class="comment-value"></span>
-    </div>
-    <div class="signature-section">
-        <div class="signature-block">
-            <div class="signature-line"></div>
-            <div class="signature-caption">Подпись сотрудника</div>
-        </div>
-    </div>
-  </div>
-</div>
+{% include "salary/_print_expense_area.html" with print_show_comment=True %}
 {% endblock %}
 
 {% block script %}
 {{ block.super }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="{% static 'salary/inbox.js' %}?v={{ now }}"></script>
-<script>
-$(document).ready(function() {
-    const expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
-    const childModal = new bootstrap.Modal(document.getElementById('childModal'));
-    function safeHideExpenseModal() {
-        const modalEl = document.getElementById('expenseModal');
-        if (!modalEl) return;
-        const active = document.activeElement;
-        if (active && modalEl.contains(active)) {
-            try { active.blur(); } catch (e) {}
-        }
-        expenseModal.hide();
-    }
-    
-    $('#addExpenseBtn').on('click', function() {
-        $.ajax({
-            url: '{% url "production_expense_create" %}',
-            success: function(data) {
-                $('#expenseModal .modal-body').html(data);
-                $('#expenseModalLabel').text('Добавить расход');
-            }
-        });
-    });
-
-    $('.edit-expense-btn').on('click', function() {
-        const url = $(this).data('url');
-        $.ajax({
-            url: url,
-            success: function(data) {
-                $('#expenseModal .modal-body').html(data);
-                $('#expenseModalLabel').text('Редактировать расход');
-            }
-        });
-    });
-
-    $(document).on('submit', '#expenseModal form', function(e) {
-        e.preventDefault();
-        $.ajax({
-            type: 'POST',
-            url: $(this).attr('action'),
-            data: $(this).serialize(),
-            success: function(data) {
-                if (data.success) {
-                    safeHideExpenseModal();
-                    location.reload();
-                } else {
-                    // Handle errors
-                    let error_html = '';
-                    for (const field in data.errors) {
-                        const firstError = data.errors[field][0];
-                        const msg = typeof firstError === 'string' ? firstError : (firstError.message || String(firstError));
-                        error_html += `<p class="text-danger">${field}: ${msg}</p>`
-                    }
-                    $('#expenseModal .modal-body').prepend(error_html);
-                }
-            }
-        });
-    });
-
-    $(document).on('click', '.open-child-modal', function(e) {
-        e.preventDefault();
-        const url = $(this).attr('href');
-        const title = $(this).data('modal-title');
-
-        $('#childModalLabel').text(title);
-        $.ajax({
-            url: url,
-            success: function(data) {
-                $('#childModal .modal-body').html(data);
-                childModal.show();
-            }
-        });
-    });
-
-    $(document).on('submit', '#childModal .child-form', function(e) {
-        e.preventDefault();
-        $.ajax({
-            type: 'POST',
-            url: $(this).attr('action'),
-            data: $(this).serialize(),
-            success: function(data) {
-                if (data.success) {
-                    // Blur any focused element inside the child modal before hiding
-                    const childEl = document.getElementById('childModal');
-                    const active = document.activeElement;
-                    if (childEl && active && childEl.contains(active)) {
-                        try { active.blur(); } catch (e) {}
-                    }
-                    childModal.hide();
-                    // Update the select field in the parent modal
-                    if ($(this).attr('action').includes('employee')) {
-                        $('#id_employee').append(new Option(data.name, data.id, true, true));
-                    } else if ($(this).attr('action').includes('expense_type')) {
-                        $('#id_expense_type').append(new Option(data.name, data.id, true, true));
-                    }
-                } else {
-                    // Handle errors
-                    let error_html = '';
-                    for (const field in data.errors) {
-                        const firstError = data.errors[field][0];
-                        const msg = typeof firstError === 'string' ? firstError : (firstError.message || String(firstError));
-                        error_html += `<p class="text-danger">${field}: ${msg}</p>`
-                    }
-                    $('#childModal .modal-body').prepend(error_html);
-                }
-            }
-        });
-    });
-});
-</script>
 {% endblock %}

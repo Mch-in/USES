@@ -1,4 +1,4 @@
-{% load widget_tweaks %}
+{% load i18n widget_tweaks %}
 <div class="page-font-small">
     <form method="post" action="{{ action_url }}" class="{% if is_modal %}register-form{% endif %}">
     {% csrf_token %}
@@ -12,7 +12,7 @@
     {% endif %}
 
     <div class="mb-3">
-        <label for="manager" class="form-label">Менеджер</label>
+        <label for="manager" class="form-label">{% trans "Manager" %}</label>
         {{ form.manager|add_class:"form-control" }}
         {% if form.manager.errors %}
             <div class="text-danger">
@@ -24,7 +24,7 @@
     </div>
 
     <div class="mb-3">
-        <label for="username" class="form-label">Имя пользователя</label>
+        <label for="username" class="form-label">{% trans "Username" %}</label>
         {{ form.username|add_class:"form-control" }}
         {% if form.username.errors %}
             <div class="text-danger">
@@ -36,8 +36,13 @@
     </div>
 
     <div class="mb-3">
-        <label for="password1" class="form-label">Пароль</label>
-        {{ form.password1|add_class:"form-control" }}
+        <label for="password1" class="form-label">{% trans "Password" %}</label>
+        <div class="input-group">
+            {{ form.password1|add_class:"form-control" }}
+            <button class="btn toggle-password" type="button" tabindex="-1">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
         {% if form.password1.errors %}
             <div class="text-danger">
                 {% for error in form.password1.errors %}
@@ -48,8 +53,13 @@
     </div>
 
     <div class="mb-3">
-        <label for="password2" class="form-label">Подтверждение пароля</label>
-        {{ form.password2|add_class:"form-control" }}
+        <label for="password2" class="form-label">{% trans "Password confirmation" %}</label>
+        <div class="input-group">
+            {{ form.password2|add_class:"form-control" }}
+            <button class="btn toggle-password" type="button" tabindex="-1">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
         {% if form.password2.errors %}
             <div class="text-danger">
                 {% for error in form.password2.errors %}
@@ -62,7 +72,7 @@
     <div class="form-check mb-3">
         {{ form.is_admin|add_class:"form-check-input" }}
         <label class="form-check-label" for="{{ form.is_admin.id_for_label }}">
-            Сделать администратором
+            {% trans "Make admin" %}
         </label>
         {% if form.is_admin.errors %}
             <div class="text-danger">
@@ -75,10 +85,10 @@
 
     <div class="d-flex justify-content-end gap-2">
         {% if is_modal %}
-            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
-            <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+            <button type="submit" class="btn btn-primary btn-sm">{% trans "Save" %}</button>
         {% else %}
-            <button type="submit" class="btn btn-success w-100">Зарегистрироваться</button>
+            <button type="submit" class="btn btn-success w-100">{% trans "Register" %}</button>
         {% endif %}
     </div>
     </form>

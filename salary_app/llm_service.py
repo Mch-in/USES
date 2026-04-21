@@ -1,1220 +1,885 @@
-"""
-Сервис для работы с локальной GPT-OSS-120B моделью
-Поддерживает различные форматы моделей (llama-cpp, transformers, vLLM)
-"""
+"""Service for working with the ChatGPT API."""
 import os
 import json
 import logging
-from typing import Optional, Dict, Any, List
+import re
+from typing import Optional, Dict, Any, List, Callable, Tuple, TYPE_CHECKING
 from django.conf import settings
+
+if TYPE_CHECKING:
+    from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# Max assistant turns that include tool_calls before we stop (each turn may batch multiple tools).
+MAX_TOOL_AGENT_ROUNDS = getattr(settings, "AI_MAX_TOOL_AGENT_ROUNDS", 5)
+
+# (tool_messages for API, optional table payload for UI)
+AnalysisToolExecutor = Callable[
+    [List[Dict[str, Any]]], Tuple[List[Dict[str, str]], Optional[Dict[str, Any]]]
+]
+
+MAX_HISTORY_MESSAGES = getattr(settings, "AI_MAX_HISTORY_MESSAGES", 6)
+
+
 class LLMService:
-    """Сервис для работы с локальной LLM моделью"""
-    
+    """Service for working with the ChatGPT API."""
+
+    client: Optional["OpenAI"] = None
+
     def __init__(self):
-        self.model = None
-        self.model_path = getattr(settings, 'GPT_MODEL_PATH', '')
-        self.model_type = getattr(settings, 'GPT_MODEL_TYPE', 'llama-cpp')
-        self.n_ctx = getattr(settings, 'GPT_N_CTX', 4096)
-        self.n_threads = getattr(settings, 'GPT_N_THREADS', 4)
-        self.n_gpu_layers = getattr(settings, 'GPT_N_GPU_LAYERS', 0)
-        self.llama_server_api_base = getattr(settings, 'LLAMA_SERVER_API_BASE', 'http://localhost:8080')
+        self.client = None
+        self.model_type = getattr(settings, 'GPT_MODEL_TYPE', 'openai')
+        self.api_key = getattr(settings, 'OPENAI_API_KEY', '')
+        self.model_name = getattr(settings, 'OPENAI_MODEL', 'gpt-4o')
+        self.api_base = getattr(settings, 'OPENAI_API_BASE', None)  # For custom API endpoints
         self._initialized = False
         
+        # Models that require max_completion_tokens instead of max_tokens
+        self.models_using_max_completion_tokens = ['o1', 'o1-preview', 'o1-mini', 'o1-mini-preview']
+        
+    def _detect_language(self, text: str) -> str:
+        """
+        Detect user's language for response selection.
+
+        Returns one of: 'ru', 'uk', 'en'.
+        This is a lightweight heuristic (no external deps) and is intentionally conservative:
+        - If Ukrainian-specific letters are present -> 'uk'
+        - Else if Cyrillic dominates -> 'ru'
+        - Else -> 'en'
+        """
+        t = (text or "").strip()
+        if not t:
+            return "ru"
+
+        # Ukrainian-specific letters (upper+lower)
+        if re.search(r"[іїєґІЇЄҐ]", t):
+            return "uk"
+
+        cyr = len(re.findall(r"[А-Яа-яЁё]", t))
+        lat = len(re.findall(r"[A-Za-z]", t))
+
+        if cyr > lat:
+            return "ru"
+        return "en"
+
+    def _i18n(self, lang: str) -> Dict[str, str]:
+        """Small UI text dictionary for prompts (ru/uk/en)."""
+        lang = lang if lang in ("ru", "uk", "en") else "ru"
+        return {
+            "ru": {
+                "headers": "Заголовки",
+                "data": "Данные",
+                "total_rows_fmt": "... (всего {n} строк)",
+                "user_question": "Исходный вопрос пользователя",
+                "section_key_findings": "Ключевые выводы",
+                "section_trend_analysis": "Анализ тенденций",
+                "section_problem_areas": "Проблемные области",
+                "section_recommendations": "Рекомендации",
+                "conclusions": "Выводы и рекомендации",
+            },
+            "uk": {
+                "headers": "Заголовки",
+                "data": "Дані",
+                "total_rows_fmt": "... (усього {n} рядків)",
+                "user_question": "Початкове питання користувача",
+                "section_key_findings": "Ключові висновки",
+                "section_trend_analysis": "Аналіз тенденцій",
+                "section_problem_areas": "Проблемні області",
+                "section_recommendations": "Рекомендації",
+                "conclusions": "Висновки та рекомендації",
+            },
+            "en": {
+                "headers": "Headers",
+                "data": "Data",
+                "total_rows_fmt": "... ({n} total rows)",
+                "user_question": "User's original question",
+                "section_key_findings": "Key findings",
+                "section_trend_analysis": "Trend analysis",
+                "section_problem_areas": "Problem areas",
+                "section_recommendations": "Recommendations",
+                "conclusions": "Conclusions and recommendations",
+            },
+        }[lang]
+
+    def _language_policy_block(self) -> str:
+        return """═══════════════════════════════════════════════════════════════
+CRITICAL — LANGUAGE POLICY
+═══════════════════════════════════════════════════════════════
+- The user may write in Russian (ru), Ukrainian (uk), or English (en).
+- Detect the language of the user's question and answer in the SAME language.
+- If the input is mixed, use the dominant language.
+- Do not translate the user's question unless they explicitly ask.
+- Keep names, IDs, numbers, dates, currencies, and proper nouns exactly as in the data.
+═══════════════════════════════════════════════════════════════
+"""
+
+    def _no_placeholder_numbers_block(self) -> str:
+        return """═══════════════════════════════════════════════════════════════
+CRITICAL — REAL FIGURES ONLY (LETTER PLACEHOLDERS ARE INVALID OUTPUT)
+═══════════════════════════════════════════════════════════════
+- NEVER write Latin letters as substitutes for numbers or unnamed managers:
+  forbidden patterns include "составил X", "достигло Y", "средняя A", "максимум C",
+  "менеджер Z", "X vs Y", "равно N" when X/Y/A/C/Z/N stand for missing data.
+- ALWAYS paste the actual values from your query/`result` or from the PREVIOUS DIALOG table
+  (full amounts, counts, averages, max deals — digits and decimal separators as in the data).
+- If you do not have a figure yet: do NOT write interpretive prose with placeholders.
+  First output ```python ... ``` that builds `result`, then write prose using ONLY those numbers.
+- For named people use real manager names from the database; never "менеджер Z".
+═══════════════════════════════════════════════════════════════
+"""
+
     def initialize(self):
-        """Инициализация модели"""
+        """Initialize the OpenAI client."""
         if self._initialized:
             return True
         
-        # Для llama-server не требуется проверка пути к модели (модель запущена отдельно)
-        if self.model_type == 'llama-server':
-            # Проверяем только настройки API
-            if not self.llama_server_api_base:
-                logger.warning("LLAMA_SERVER_API_BASE не установлен. Модель не будет загружена.")
-                return False
-        else:
-            # Для других типов моделей проверяем путь
-            if not self.model_path:
-                logger.warning("GPT_MODEL_PATH не установлен. Модель не будет загружена.")
-                return False
-            
-            if not os.path.exists(self.model_path):
-                logger.error(f"Путь к модели не существует: {self.model_path}")
-                return False
-            
-        try:
-            if self.model_type == 'llama-cpp':
-                self._initialize_llama_cpp()
-            elif self.model_type == 'llama-server':
-                self._initialize_llama_server()
-            elif self.model_type == 'transformers':
-                self._initialize_transformers()
-            elif self.model_type == 'vllm':
-                self._initialize_vllm()
-            else:
-                logger.error(f"Неизвестный тип модели: {self.model_type}")
-                return False
-                
-            self._initialized = True
-            if self.model_type == 'llama-server':
-                logger.info(f"Модель {self.model_type} успешно подключена к {self.llama_server_api_base}")
-            else:
-                logger.info(f"Модель {self.model_type} успешно загружена из {self.model_path}")
-            return True
-        except Exception as e:
-            logger.exception(f"Ошибка при инициализации модели: {e}")
+        if not self.api_key:
+            logger.warning("OPENAI_API_KEY is not set. The model will not be loaded.")
             return False
-    
-    def _initialize_llama_cpp(self):
-        """Инициализация модели через llama-cpp-python"""
-        try:
-            from llama_cpp import Llama
-            
-            self.model = Llama(
-                model_path=self.model_path,
-                n_ctx=self.n_ctx,
-                n_threads=self.n_threads,
-                n_gpu_layers=self.n_gpu_layers,
-                verbose=False
-            )
-        except ImportError:
-            logger.error("llama-cpp-python не установлен. Установите: pip install llama-cpp-python")
-            raise
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке модели через llama-cpp: {e}")
-            raise
-    
-    def _initialize_transformers(self):
-        """Инициализация модели через transformers"""
-        try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                device_map="auto" if torch.cuda.is_available() else None,
-                low_cpu_mem_usage=True
-            )
-            if not torch.cuda.is_available():
-                self.model = self.model.to('cpu')
-        except ImportError:
-            logger.error("transformers не установлен. Установите: pip install transformers torch")
-            raise
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке модели через transformers: {e}")
-            raise
-    
-    def _initialize_llama_server(self):
-        """Инициализация модели через llama-server API"""
-        try:
-            import requests
-            
-            # Проверяем доступность сервера - пробуем разные endpoints
-            health_endpoints = ["/health", "/", "/api/health", "/v1/health"]
-            server_available = False
-            
-            for health_endpoint in health_endpoints:
-                health_url = f"{self.llama_server_api_base.rstrip('/')}{health_endpoint}"
-                try:
-                    response = requests.get(
-                        health_url, 
-                        timeout=5,
-                        headers={'Accept-Encoding': 'identity'}  # Отключаем gzip
-                    )
-                    # Проверяем, что это не HTML страница ошибки
-                    content_type = response.headers.get('Content-Type', '').lower()
-                    if response.status_code == 200 and 'text/html' not in content_type:
-                        logger.info(f"llama-server доступен на {self.llama_server_api_base}")
-                        self.api_base = self.llama_server_api_base
-                        self.requests = requests
-                        server_available = True
-                        break
-                    elif response.status_code == 200:
-                        # Если HTML, но статус 200, возможно сервер работает, но endpoint не тот
-                        logger.info(f"llama-server отвечает на {health_url}, но возвращает HTML")
-                        self.api_base = self.llama_server_api_base
-                        self.requests = requests
-                        server_available = True
-                        break
-                except requests.exceptions.RequestException:
-                    continue
-            
-            if not server_available:
-                # Если health endpoints не сработали, просто сохраняем настройки
-                # Реальная проверка будет при первом запросе
-                logger.warning(f"Не удалось проверить доступность llama-server на {self.llama_server_api_base}, но продолжим инициализацию")
-                self.api_base = self.llama_server_api_base
-                self.requests = requests
-                
-        except ImportError:
-            logger.error("requests не установлен. Установите: pip install requests")
-            raise
-        except Exception as e:
-            logger.error(f"Ошибка при подключении к llama-server API: {e}")
-            raise
-    
-    def _initialize_vllm(self):
-        """Инициализация модели через vLLM API"""
+        
         try:
             from openai import OpenAI
             
-            # vLLM обычно работает через OpenAI-совместимый API
-            api_base = getattr(settings, 'VLLM_API_BASE', 'http://localhost:8000/v1')
-            self.client = OpenAI(
-                base_url=api_base,
-                api_key="not-needed"
-            )
-            self.model_type = 'vllm-api'
+            if self.api_base:
+                self.client = OpenAI(api_key=self.api_key, base_url=self.api_base)
+            else:
+                self.client = OpenAI(api_key=self.api_key)
+            self._initialized = True
+            logger.info(f"ChatGPT client initialized successfully. Model: {self.model_name}")
+            return True
         except ImportError:
-            logger.error("openai не установлен для vLLM. Установите: pip install openai")
+            logger.error("openai is not installed. Please install: pip install openai")
             raise
         except Exception as e:
-            logger.error(f"Ошибка при подключении к vLLM API: {e}")
-            raise
+            logger.exception(f"Error while initializing OpenAI client: {e}")
+            return False
     
     def generate(self, prompt: str, max_tokens: int = 512, temperature: float = 0.7, 
-                  stop: Optional[List[str]] = None):
-        """Генерация ответа на основе промпта
+                  stop: Optional[List[str]] = None, tools: Optional[List[Dict[str, Any]]] = None):
+        """Generate a response based on the prompt.
         
         Returns:
-            dict с ключами 'text' и 'usage' (информация о токенах), или строка для обратной совместимости
+            dict with keys 'text' (or 'tool_calls') and 'usage' (token usage information).
         """
         try:
             if not self._initialized:
                 if not self.initialize():
-                    error_msg = "Ошибка: Модель не загружена."
-                    if self.model_type == 'llama-server':
-                        error_msg += " Проверьте, что llama-server запущен и LLAMA_SERVER_API_BASE указан правильно."
-                    else:
-                        error_msg += " Проверьте настройки GPT_MODEL_PATH."
+                    error_msg = "Error: ChatGPT client is not initialized. Check OPENAI_API_KEY settings."
                     return {'text': error_msg, 'usage': {}}
             
             try:
-                if self.model_type == 'llama-cpp':
-                    text = self._generate_llama_cpp(prompt, max_tokens, temperature, stop)
-                    return {'text': text, 'usage': {}}
-                elif self.model_type == 'llama-server':
-                    result = self._generate_llama_server(prompt, max_tokens, temperature, stop)
-                    # Если вернулся словарь, возвращаем как есть
-                    if isinstance(result, dict):
-                        return result
-                    # Если вернулась строка (для обратной совместимости)
-                    return {'text': result, 'usage': {}}
-                elif self.model_type == 'transformers':
-                    text = self._generate_transformers(prompt, max_tokens, temperature, stop)
-                    return {'text': text, 'usage': {}}
-                elif self.model_type == 'vllm-api':
-                    text = self._generate_vllm(prompt, max_tokens, temperature, stop)
-                    return {'text': text, 'usage': {}}
+                assert self.client is not None
+                # Determine which parameter to use for token limit
+                completion_params = {}
+                if any(model in self.model_name.lower() for model in self.models_using_max_completion_tokens):
+                    completion_params['max_completion_tokens'] = max_tokens
                 else:
-                    return {'text': "Ошибка: Неизвестный тип модели", 'usage': {}}
+                    completion_params['max_tokens'] = max_tokens
+                
+                if tools:
+                    completion_params['tools'] = tools
+
+                
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=temperature,
+                    stop=stop or [],
+                    **completion_params
+                )
+                
+                # Extract text, tool calls and token usage information
+                choice = response.choices[0]
+                text_content = choice.message.content.strip() if choice.message.content else ""
+                
+                result_dict = {'usage': {
+                    'prompt_tokens': response.usage.prompt_tokens if hasattr(response.usage, 'prompt_tokens') else 0,
+                    'completion_tokens': response.usage.completion_tokens if hasattr(response.usage, 'completion_tokens') else 0,
+                    'total_tokens': response.usage.total_tokens if hasattr(response.usage, 'total_tokens') else 0
+                }}
+                
+                if choice.message.tool_calls:
+                    # Serialize tool calls for the caller
+                    tool_calls = []
+                    for tc in choice.message.tool_calls:
+                        tool_calls.append({
+                            'id': tc.id,
+                            'function': {
+                                'name': tc.function.name,
+                                'arguments': tc.function.arguments
+                            }
+                        })
+                    result_dict['tool_calls'] = tool_calls
+                else:
+                    result_dict['text'] = text_content
+                    
+                return result_dict
             except Exception as e:
                 error_msg = str(e)
-                logger.exception(f"Ошибка при генерации через {self.model_type}: {e}")
-                
-                # Форматируем понятное сообщение об ошибке
-                if 'llama-server' in error_msg.lower() or 'connection' in error_msg.lower() or 'timeout' in error_msg.lower():
-                    error_msg = f"Ошибка подключения к llama-server: {error_msg}. Убедитесь, что llama-server запущен на {self.api_base if hasattr(self, 'api_base') else self.llama_server_api_base}."
-                else:
-                    error_msg = f"Ошибка при генерации ответа: {error_msg}"
-                return {'text': error_msg, 'usage': {}}
+                logger.exception(f"Error during generation via ChatGPT: {e}")
+                return {'text': f"Error generating response: {error_msg}", 'usage': {}}
         except Exception as e:
-            logger.exception(f"Критическая ошибка при генерации: {e}")
-            return {'text': f"Критическая ошибка: {str(e)}", 'usage': {}}
-    
-    def _generate_llama_cpp(self, prompt: str, max_tokens: int, temperature: float, stop: Optional[List[str]]) -> str:
-        """Генерация через llama-cpp"""
-        response = self.model(
-            prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stop=stop or [],
-            echo=False
-        )
-        return response['choices'][0]['text'].strip()
-    
-    def _generate_llama_server(self, prompt: str, max_tokens: int, temperature: float, stop: Optional[List[str]]) -> str:
-        """Генерация через llama-server API"""
-        import requests
-        
-        # llama-server API endpoint для генерации
-        # Попробуем разные варианты endpoints
-        endpoints = [
-            "/completion",
-            "/api/completion",
-            "/v1/completions",
-            "/api/v1/completions"
-        ]
-        
-        # Для генерации кода увеличиваем n_predict, если max_tokens слишком мал
-        # Минимум 512 токенов для кода, максимум 2048
-        n_predict = max(max_tokens, 512)
-        n_predict = min(n_predict, 2048)
-        
-        # Базовый payload для llama-server (не OpenAI-совместимый)
-        base_payload = {
-            "prompt": prompt,
-            "n_predict": n_predict,
-            "temperature": temperature,
-            "stop": stop or [],
-            "stream": False
-        }
-        
-        last_error = None
-        
-        # Пробуем разные endpoints
-        for endpoint in endpoints:
-            url = f"{self.api_base.rstrip('/')}{endpoint}"
-            try:
-                logger.info(f"Попытка запроса к llama-server: {url}")
-                logger.info(f"Параметры запроса: max_tokens={max_tokens}, temperature={temperature}")
-                
-                # Для OpenAI-совместимого API используем другой формат
-                if endpoint in ['/v1/completions', '/api/v1/completions']:
-                    payload = {
-                        "model": "default",
-                        "prompt": prompt,
-                        "max_tokens": n_predict,
-                        "temperature": temperature,
-                        "stop": stop or []
-                    }
-                else:
-                    payload = base_payload
-                
-                import time
-                start_time = time.time()
-                try:
-                    response = self.requests.post(
-                        url, 
-                        json=payload, 
-                        timeout=1200,  # Увеличиваем timeout до 20 минут для больших моделей
-                        headers={
-                            'Content-Type': 'application/json',
-                            'Accept-Encoding': 'identity'  # Отключаем gzip для llama-server
-                        }
-                    )
-                    elapsed_time = time.time() - start_time
-                    logger.info(f"Запрос к llama-server выполнен за {elapsed_time:.2f} секунд")
-                except requests.exceptions.Timeout as timeout_err:
-                    elapsed_time = time.time() - start_time
-                    logger.error(f"Таймаут запроса к llama-server после {elapsed_time:.2f} секунд")
-                    raise Exception(f"Запрос к llama-server превысил лимит времени (20 минут). Модель обрабатывает слишком долго. Попробуйте уменьшить max_tokens или упростить запрос.")
-                
-                # Проверяем, что ответ не HTML (даже если Content-Type не указывает на это)
-                content_type = response.headers.get('Content-Type', '').lower()
-                response_text_preview = response.text[:100].strip() if response.text else ''
-                
-                # Проверяем, начинается ли ответ с HTML тегов
-                if response_text_preview.startswith('<!DOCTYPE') or response_text_preview.startswith('<html') or 'text/html' in content_type:
-                    logger.warning(f"Сервер вернул HTML вместо JSON на {url}. Статус: {response.status_code}")
-                    logger.warning(f"Первые 500 символов ответа: {response.text[:500]}")
-                    # Пробуем следующий endpoint
-                    continue
-                
-                # Проверяем статус код перед raise_for_status
-                if response.status_code == 404:
-                    logger.debug(f"Endpoint {url} не найден (404), пробуем следующий")
-                    continue
-                
-                response.raise_for_status()
-                
-                # Проверяем, что ответ - это JSON
-                # Некоторые серверы могут возвращать text/plain, но с JSON содержимым
-                try:
-                    data = response.json()
-                except ValueError as e:
-                    # Если не удалось распарсить как JSON, проверяем, не HTML ли это
-                    if response_text_preview.startswith('<!DOCTYPE') or response_text_preview.startswith('<html'):
-                        logger.error(f"Сервер вернул HTML вместо JSON на {url}")
-                        logger.error(f"Первые 500 символов ответа: {response.text[:500]}")
-                        continue
-                    
-                    # Пробуем распарсить вручную
-                    try:
-                        data = json.loads(response.text)
-                    except (ValueError, json.JSONDecodeError) as json_err:
-                        logger.error(f"Ответ не является валидным JSON от {url}: {json_err}")
-                        logger.error(f"Первые 500 символов ответа: {response.text[:500]}")
-                        # Если это ошибка gzip, пробуем следующий endpoint
-                        if 'gzip' in response.text.lower():
-                            logger.warning(f"Сервер вернул ошибку gzip, пробуем следующий endpoint")
-                        continue
-                
-                # Извлекаем сгенерированный текст и информацию о токенах
-                # llama-server возвращает ответ в формате: {"index": 0, "content": "...", ...}
-                text_content = None
-                token_info = {}
-                
-                # Извлекаем информацию о токенах из ответа
-                if 'tokens_evaluated' in data:
-                    token_info['prompt_tokens'] = data['tokens_evaluated']
-                if 'tokens_predicted' in data:
-                    token_info['completion_tokens'] = data['tokens_predicted']
-                if 'tokens_total' in data:
-                    token_info['total_tokens'] = data['tokens_total']
-                if 'usage' in data:
-                    # OpenAI-совместимый формат
-                    usage = data['usage']
-                    if 'prompt_tokens' in usage:
-                        token_info['prompt_tokens'] = usage['prompt_tokens']
-                    if 'completion_tokens' in usage:
-                        token_info['completion_tokens'] = usage['completion_tokens']
-                    if 'total_tokens' in usage:
-                        token_info['total_tokens'] = usage['total_tokens']
-                
-                # Извлекаем текст
-                if 'content' in data:
-                    content = data['content']
-                    logger.info(f"Успешно получен ответ от llama-server на {url}")
-                    if isinstance(content, str):
-                        text_content = content.strip()
-                    else:
-                        logger.warning(f"Поле 'content' не является строкой: {type(content)}")
-                        text_content = str(content).strip()
-                elif 'text' in data:
-                    # Убираем оригинальный промпт из ответа
-                    text = data['text']
-                    if text.startswith(prompt):
-                        text = text[len(prompt):].strip()
-                    text_content = text
-                elif 'choices' in data and len(data['choices']) > 0:
-                    # OpenAI-совместимый формат
-                    choice = data['choices'][0]
-                    if 'text' in choice:
-                        text = choice['text']
-                        if text.startswith(prompt):
-                            text = text[len(prompt):].strip()
-                        text_content = text
-                    elif 'message' in choice and 'content' in choice['message']:
-                        text_content = choice['message']['content'].strip()
-                
-                if text_content:
-                    # Вычисляем total_tokens, если не указан
-                    if 'total_tokens' not in token_info:
-                        prompt_tokens = token_info.get('prompt_tokens', 0)
-                        completion_tokens = token_info.get('completion_tokens', 0)
-                        if prompt_tokens or completion_tokens:
-                            token_info['total_tokens'] = prompt_tokens + completion_tokens
-                    
-                    return {
-                        'text': text_content,
-                        'usage': token_info
-                    }
-                else:
-                    # Если content пустой, но есть другие данные, проверяем почему
-                    if 'content' in data and data['content'] == '':
-                        # Проверяем, не остановилась ли модель на стоп-слове
-                        if 'stopping_word' in data:
-                            stopping_word = data.get('stopping_word', '')
-                            logger.warning(f"Модель остановилась на стоп-слове: '{stopping_word}'. Content пустой.")
-                            # Если модель остановилась слишком рано, пробуем без стоп-слов или с другими параметрами
-                            if stopping_word in ['We need', 'We have', 'We can', 'We should', 'We must']:
-                                logger.info("Модель остановилась на английском стоп-слове. Пробуем без этих стоп-слов...")
-                                # Пробуем с минимальными стоп-словами только для кода
-                                minimal_stop = ['```\n\n', '\n\n\n']
-                                payload_minimal = payload.copy()
-                                payload_minimal['stop'] = minimal_stop
-                                payload_minimal['n_predict'] = max_tokens * 2  # Увеличиваем лимит
-                                try:
-                                    response_minimal = self.requests.post(
-                                        url,
-                                        json=payload_minimal,
-                                        timeout=1200,
-                                        headers={
-                                            'Content-Type': 'application/json',
-                                            'Accept-Encoding': 'identity'
-                                        }
-                                    )
-                                    response_minimal.raise_for_status()
-                                    data_minimal = response_minimal.json()
-                                    if 'content' in data_minimal and data_minimal['content']:
-                                        text_content = data_minimal['content'].strip()
-                                        logger.info(f"Успешно получен ответ с минимальными стоп-словами: {len(text_content)} символов")
-                                        # Обновляем token_info
-                                        if 'tokens_predicted' in data_minimal:
-                                            token_info['completion_tokens'] = data_minimal['tokens_predicted']
-                                        if 'tokens_evaluated' in data_minimal:
-                                            token_info['prompt_tokens'] = data_minimal['tokens_evaluated']
-                                        if 'total_tokens' not in token_info:
-                                            prompt_tokens = token_info.get('prompt_tokens', 0)
-                                            completion_tokens = token_info.get('completion_tokens', 0)
-                                            if prompt_tokens or completion_tokens:
-                                                token_info['total_tokens'] = prompt_tokens + completion_tokens
-                                        return {
-                                            'text': text_content,
-                                            'usage': token_info
-                                        }
-                                except Exception as e:
-                                    logger.warning(f"Не удалось получить ответ с минимальными стоп-словами: {e}")
-                    
-                    logger.warning(f"Неожиданный формат ответа от llama-server на {url}: {data}")
-                    # Пробуем следующий endpoint
-                    continue
-                    
-            except requests.exceptions.Timeout as e:
-                # Таймаут - это особая ошибка, которая уже обработана выше
-                last_error = e
-                logger.error(f"Таймаут при запросе к {url}: {e}")
-                # Не пробуем другие endpoints при таймауте, так как проблема в производительности
-                raise Exception(f"Запрос к llama-server превысил лимит времени. Сервер обрабатывает запрос слишком долго. Попробуйте уменьшить размер запроса или подождите, пока сервер завершит обработку.")
-            except requests.exceptions.HTTPError as e:
-                # Если это 404, пробуем следующий endpoint
-                if e.response and e.response.status_code == 404:
-                    logger.debug(f"Endpoint {url} не найден (404), пробуем следующий")
-                    last_error = e
-                    continue
-                else:
-                    # Для других HTTP ошибок логируем детали и пробуем следующий endpoint
-                    status_code = e.response.status_code if e.response else None
-                    error_text = e.response.text[:500] if e.response else str(e)
-                    logger.warning(f"HTTP ошибка при запросе к {url}: {status_code} - {error_text}")
-                    
-                    # Если это 400 Bad Request, логируем размер промпта и детали запроса
-                    if status_code == 400:
-                        prompt_size = len(prompt)
-                        logger.error(f"400 Bad Request от llama-server на {url}")
-                        logger.error(f"Размер промпта: {prompt_size} символов (~{prompt_size // 4} токенов)")
-                        logger.error(f"Параметры запроса: {json.dumps(payload, ensure_ascii=False, indent=2)}")
-                        logger.error(f"Первые 1000 символов промпта: {prompt[:1000]}")
-                        logger.error(f"Ответ сервера: {error_text}")
-                        
-                        # Для OpenAI-совместимого API (/v1/completions) нужен другой формат
-                        if endpoint == '/v1/completions':
-                            logger.info("Пробуем OpenAI-совместимый формат для /v1/completions")
-                            openai_payload = {
-                                "model": "default",
-                                "prompt": prompt,
-                                "max_tokens": n_predict,
-                                "temperature": temperature,
-                                "stop": stop or []
-                            }
-                            try:
-                                response_openai = self.requests.post(
-                                    url,
-                                    json=openai_payload,
-                                    timeout=1200,
-                                    headers={
-                                        'Content-Type': 'application/json',
-                                        'Accept-Encoding': 'identity'
-                                    }
-                                )
-                                if response_openai.status_code == 200:
-                                    data_openai = response_openai.json()
-                                    if 'choices' in data_openai and len(data_openai['choices']) > 0:
-                                        text_content = data_openai['choices'][0].get('text', '').strip()
-                                        if text_content:
-                                            logger.info(f"Успешно получен ответ через OpenAI-совместимый формат: {len(text_content)} символов")
-                                            # Обновляем token_info
-                                            if 'usage' in data_openai:
-                                                token_info = data_openai['usage']
-                                            return {
-                                                'text': text_content,
-                                                'usage': token_info
-                                            }
-                            except Exception as openai_err:
-                                logger.warning(f"Не удалось использовать OpenAI-совместимый формат: {openai_err}")
-                    
-                    last_error = e
-                    continue
-            except requests.exceptions.RequestException as e:
-                last_error = e
-                logger.debug(f"Ошибка при запросе к {url}: {e}")
-                # Пробуем следующий endpoint
-                continue
-        
-        # Если все endpoints не сработали
-        if last_error:
-            logger.exception(f"Ошибка при запросе к llama-server: {last_error}")
-            error_msg = f"Не удалось подключиться к llama-server. Проверьте, что сервер запущен на {self.api_base}. Ошибка: {str(last_error)}"
-            raise Exception(error_msg)
-        else:
-            # Проверяем, запущен ли llama-server вообще
-            try:
-                import requests
-                health_check = requests.get(
-                    self.api_base.rstrip('/'),
-                    timeout=2,
-                    headers={'Accept-Encoding': 'identity'}
-                )
-                if health_check.status_code == 200 and ('<!DOCTYPE' in health_check.text or '<html' in health_check.text):
-                    error_msg = f"llama-server отвечает на {self.api_base}, но возвращает HTML вместо JSON. Проверьте правильность endpoint'а. Возможно, используется неправильный API endpoint."
-                else:
-                    error_msg = f"Не удалось получить JSON ответ от llama-server на {self.api_base}. Проверьте доступность сервера и формат API. Попробованы endpoints: {', '.join(endpoints)}"
-            except Exception as check_err:
-                error_msg = f"llama-server недоступен на {self.api_base}. Проверьте, что сервер запущен. Ошибка проверки: {str(check_err)}"
-            
-            logger.error(error_msg)
-            raise Exception(error_msg)
-    
-    def _generate_transformers(self, prompt: str, max_tokens: int, temperature: float, stop: Optional[List[str]]) -> str:
-        """Генерация через transformers"""
-        import torch
-        inputs = self.tokenizer(prompt, return_tensors="pt")
-        
-        if hasattr(self.model, 'device'):
-            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
+            logger.exception(f"Critical error during generation: {e}")
+            return {'text': f"Critical error: {str(e)}", 'usage': {}}
+
+    def _generate_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        stop: Optional[List[str]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Generate a response from a prepared OpenAI messages list."""
+        try:
+            if not self._initialized:
+                if not self.initialize():
+                    error_msg = "Error: ChatGPT client is not initialized. Check OPENAI_API_KEY settings."
+                    return {'text': error_msg, 'usage': {}}
+
+            assert self.client is not None
+            completion_params = self._completion_kwargs(max_tokens)
+            if tools:
+                completion_params['tools'] = tools
+
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
                 temperature=temperature,
-                do_sample=True,
-                pad_token_id=self.tokenizer.eos_token_id
+                stop=stop or [],
+                **completion_params
             )
-        
-        generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # Убираем оригинальный промпт из ответа
-        if generated_text.startswith(prompt):
-            generated_text = generated_text[len(prompt):].strip()
-        
-        return generated_text
-    
-    def _generate_vllm(self, prompt: str, max_tokens: int, temperature: float, stop: Optional[List[str]]) -> str:
-        """Генерация через vLLM API"""
-        response = self.client.completions.create(
-            model="default",
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stop=stop or []
+
+            choice = response.choices[0]
+            text_content = choice.message.content.strip() if choice.message.content else ""
+
+            result_dict = {'usage': {
+                'prompt_tokens': response.usage.prompt_tokens if hasattr(response.usage, 'prompt_tokens') else 0,
+                'completion_tokens': response.usage.completion_tokens if hasattr(response.usage, 'completion_tokens') else 0,
+                'total_tokens': response.usage.total_tokens if hasattr(response.usage, 'total_tokens') else 0
+            }}
+
+            if choice.message.tool_calls:
+                tool_calls = []
+                for tc in choice.message.tool_calls:
+                    tool_calls.append({
+                        'id': tc.id,
+                        'function': {
+                            'name': tc.function.name,
+                            'arguments': tc.function.arguments
+                        }
+                    })
+                result_dict['tool_calls'] = tool_calls
+            else:
+                result_dict['text'] = text_content
+
+            return result_dict
+        except Exception as e:
+            logger.exception("Error during generation with messages via ChatGPT: %s", e)
+            return {'text': f"Error generating response: {e}", 'usage': {}}
+
+    @staticmethod
+    def _merge_openai_usage(acc: Dict[str, int], usage: Any) -> None:
+        if not usage:
+            return
+        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            val = getattr(usage, key, None)
+            if val is not None:
+                acc[key] = int(acc.get(key, 0)) + int(val)
+
+    def _completion_kwargs(self, max_tokens: int) -> Dict[str, Any]:
+        completion_params: Dict[str, Any] = {}
+        if any(m in self.model_name.lower() for m in self.models_using_max_completion_tokens):
+            completion_params["max_completion_tokens"] = max_tokens
+        else:
+            completion_params["max_tokens"] = max_tokens
+        return completion_params
+
+    def _analyze_with_tool_agent(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        tool_executor: AnalysisToolExecutor,
+        max_tokens: int,
+        temperature: float,
+        stop: Optional[List[str]],
+    ) -> Dict[str, Any]:
+        """
+        Multi-turn ReAct-style loop: model may call tools repeatedly; tool results
+        are sent back as `role: tool` messages until the model returns plain text.
+        """
+        if not self._initialized and not self.initialize():
+            return {
+                "text": "Error: ChatGPT client is not initialized. Check OPENAI_API_KEY settings.",
+                "usage": {},
+                "table_data": None,
+            }
+
+        messages = list(messages or [])
+        if not messages:
+            return {
+                "text": "Error: no messages provided for analysis.",
+                "usage": {},
+                "table_data": None,
+            }
+        usage_acc: Dict[str, int] = {}
+        table_data: Optional[Dict[str, Any]] = None
+
+        try:
+            assert self.client is not None
+            for round_idx in range(MAX_TOOL_AGENT_ROUNDS):
+                completion_params = self._completion_kwargs(max_tokens)
+                completion_params["tools"] = tools
+
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    temperature=temperature,
+                    stop=stop or [],
+                    **completion_params,
+                )
+                self._merge_openai_usage(usage_acc, getattr(response, "usage", None))
+
+                choice = response.choices[0].message
+
+                if choice.tool_calls:
+                    serialized_calls: List[Dict[str, Any]] = []
+                    api_tool_calls: List[Dict[str, Any]] = []
+                    for tc in choice.tool_calls:
+                        serialized_calls.append(
+                            {
+                                "id": tc.id,
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments or "{}",
+                                },
+                            }
+                        )
+                        api_tool_calls.append(
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments or "{}",
+                                },
+                            }
+                        )
+
+                    assistant_msg: Dict[str, Any] = {
+                        "role": "assistant",
+                        "content": choice.content or "",
+                        "tool_calls": api_tool_calls,
+                    }
+                    messages.append(assistant_msg)
+
+                    tool_msgs, td = tool_executor(serialized_calls)
+                    if td:
+                        table_data = td
+                    for tm in tool_msgs:
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tm["id"],
+                                "content": tm.get("content") or "",
+                            }
+                        )
+                    logger.info(
+                        "Tool agent round %s: %s tool result(s)",
+                        round_idx + 1,
+                        len(tool_msgs),
+                    )
+                    continue
+
+                text = (choice.content or "").strip()
+                return {"text": text, "usage": usage_acc, "table_data": table_data}
+
+            return {
+                "text": (
+                    "Could not finish analysis within the maximum number of tool rounds. "
+                    "Try a narrower question or period."
+                ),
+                "usage": usage_acc,
+                "table_data": table_data,
+            }
+        except Exception as e:
+            logger.exception("Tool agent loop failed: %s", e)
+            return {
+                "text": f"Error during tool agent analysis: {e}",
+                "usage": usage_acc,
+                "table_data": table_data,
+            }
+
+    def _analyze_data_agent_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        tool_executor: AnalysisToolExecutor,
+        max_tokens: int,
+        temperature: float,
+        stop: Optional[List[str]],
+    ):
+        """Run full tool agent non-streaming, then chunk the final text for SSE consumers."""
+        res = self._analyze_with_tool_agent(
+            messages, tools, tool_executor, max_tokens, temperature, stop
         )
-        return response.choices[0].text.strip()
+        text = res.get("text") or ""
+        usage = res.get("usage") or {}
+        td = res.get("table_data")
+        n = len(text)
+        if n == 0:
+            yield {"chunk": "", "usage": usage, "done": True, "agent_table_data": td}
+            return
+        step = max(32, min(256, n // 24 or 32))
+        for i in range(0, n, step):
+            yield {"chunk": text[i : i + step], "usage": usage}
+        yield {"chunk": "", "usage": usage, "done": True, "agent_table_data": td}
     
-    def analyze_data(self, data_summary: Dict[str, Any], question: str = "", use_streaming: bool = False):
-        """Анализ данных с использованием модели
+    def analyze_data(
+        self,
+        data_summary: Dict[str, Any],
+        question: str = "",
+        use_streaming: bool = False,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        lang: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_executor: Optional[AnalysisToolExecutor] = None,
+    ):
+        """Analyze data using ChatGPT.
         
         Args:
-            data_summary: Сводка данных для анализа (не используется в промпте, так как модель собирает данные через код)
-            question: Вопрос для анализа
-            use_streaming: Если True, возвращает генератор для streaming ответов
+            data_summary: Data summary for analysis.
+            question: Analysis question.
+            use_streaming: If True, returns a generator for streaming responses.
+            conversation_history: Optional list of previous messages [{"role": "user"|"assistant", "content": "..."}].
+            tools: Optional OpenAI tools schema.
+            tool_executor: When set with ``tools``, runs multi-turn tool results (ReAct loop).
+                Callable taking serialized tool_calls list, returning
+                ``(list of {"id","content"} for role=tool, optional table dict for UI)``.
         
         Returns:
-            Если use_streaming=False: dict с ключами 'text' и 'usage' (информация о токенах)
-            Если use_streaming=True: генератор, который возвращает части ответа (последний чанк содержит usage)
+            If use_streaming is False: dict with keys 'text' and 'usage' (token usage info).
+            If use_streaming is True: generator that yields response chunks (the last chunk contains usage).
+            With ``tool_executor``, dict may include ``table_data`` (non-streaming) or last chunk
+            ``agent_table_data`` (streaming).
         """
-        # data_summary не передается в промпт - модель будет собирать данные через Python код
-        prompt = self._build_analysis_prompt(data_summary, question)
-        # Используем LLAMA_CONTEXT из настроек для max_tokens
-        max_context = getattr(settings, 'LLAMA_CONTEXT', 32768)
-        # Убеждаемся, что max_context - это число
-        if isinstance(max_context, str):
-            try:
-                max_context = int(max_context)
-            except (ValueError, TypeError):
-                max_context = 32768
-        elif not isinstance(max_context, int):
-            max_context = 32768
+        messages = self._build_analysis_messages(
+            data_summary,
+            question,
+            conversation_history=conversation_history,
+            lang=lang,
+        )
         
-        # Для генерации кода используем минимальные стоп-токены, чтобы не останавливать генерацию слишком рано
-        # Убираем агрессивные стоп-токены типа "We need", так как они могут остановить генерацию кода
+        # For free-form answers we use more tokens (up to 4096); for code we would usually use fewer (around 2048).
+        # Increase the limit because free-form answers can be longer.
+        max_tokens = 4096  # Up to 4096 tokens for free-form answers and analysis
+        
         stop_tokens = [
-            "\n\n\n\n",  # Множественные пустые строки
-            "```\n\n```",  # Пустой блок кода
+            "\n\n\n\n",  # Multiple consecutive empty lines
+            "```\n\n```",  # Empty code block
         ]
         
-        # Увеличиваем max_tokens для генерации кода (до 2048 токенов)
-        code_max_tokens = min(int(max_context), 2048)
+        # Lower temperature improves instruction-following (code fence first, real numbers).
+        temperature = 0.35
+
+        if tools and tool_executor is not None:
+            if use_streaming:
+                return self._analyze_data_agent_stream(
+                    messages, tools, tool_executor, max_tokens, temperature, stop_tokens
+                )
+            return self._analyze_with_tool_agent(
+                messages, tools, tool_executor, max_tokens, temperature, stop_tokens
+            )
         
-        if use_streaming and self.model_type == 'llama-server':
-            return self.generate_stream(prompt, max_tokens=code_max_tokens, temperature=0.3, stop=stop_tokens)
+        if use_streaming:
+            return self.generate_stream(
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stop=stop_tokens,
+                tools=tools,
+            )
         else:
-            return self.generate(prompt, max_tokens=code_max_tokens, temperature=0.3, stop=stop_tokens)
+            return self._generate_with_messages(
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stop=stop_tokens,
+                tools=tools,
+            )
     
-    def generate_stream(self, prompt: str, max_tokens: int = 512, temperature: float = 0.7, 
-                       stop: Optional[List[str]] = None):
-        """Генерация ответа через streaming (постепенная передача)"""
+    def generate_stream(self, prompt: Optional[str] = None, max_tokens: int = 512, temperature: float = 0.7, 
+                       stop: Optional[List[str]] = None, tools: Optional[List[Dict[str, Any]]] = None,
+                       messages: Optional[List[Dict[str, Any]]] = None):
+        """Generate a response via streaming (incremental chunks)."""
         if not self._initialized:
             if not self.initialize():
-                error_msg = "Ошибка: Модель не загружена."
-                if self.model_type == 'llama-server':
-                    error_msg += " Проверьте, что llama-server запущен и LLAMA_SERVER_API_BASE указан правильно."
-                else:
-                    error_msg += " Проверьте настройки GPT_MODEL_PATH."
+                error_msg = "Error: ChatGPT client is not initialized. Check OPENAI_API_KEY settings."
                 yield {'chunk': error_msg, 'usage': {}}
                 return
         
-        if self.model_type == 'llama-server':
-            yield from self._generate_llama_server_stream(prompt, max_tokens, temperature, stop)
-        else:
-            # Для других типов моделей возвращаем полный ответ
-            full_response = self.generate(prompt, max_tokens, temperature, stop)
-            if isinstance(full_response, dict):
-                # Если вернулся словарь, возвращаем chunk
-                yield {'chunk': full_response.get('text', ''), 'usage': full_response.get('usage', {})}
+        try:
+            assert self.client is not None
+            # Determine which parameter to use for the token limit
+            completion_params = {}
+            if any(model in self.model_name.lower() for model in self.models_using_max_completion_tokens):
+                completion_params['max_completion_tokens'] = max_tokens
             else:
-                # Для обратной совместимости
-                yield full_response
-    
-    def _generate_llama_server_stream(self, prompt: str, max_tokens: int, temperature: float, stop: Optional[List[str]]) -> str:
-        """Генерация через llama-server API с streaming"""
-        import requests
-        
-        endpoints = ["/completion", "/api/completion", "/v1/completions", "/api/v1/completions"]
-        
-        payload = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temperature,
-            "stop": stop or [],
-            "stream": True  # Включаем streaming
-        }
-        
-        for endpoint in endpoints:
-            url = f"{self.api_base.rstrip('/')}{endpoint}"
-            try:
-                logger.info(f"Попытка streaming запроса к llama-server: {url}")
-                response = self.requests.post(
-                    url,
-                    json=payload,
-                    timeout=1200,
-                    stream=True,  # Включаем streaming для requests
-                    headers={
-                        'Content-Type': 'application/json',
-                        'Accept-Encoding': 'identity'
-                    }
-                )
-                
-                if response.status_code == 404:
-                    logger.debug(f"Endpoint {url} не найден (404), пробуем следующий")
-                    continue
-                
-                response.raise_for_status()
-                
-                # Читаем потоковые данные
-                accumulated_text = ""
-                token_info = {}
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            # Парсим JSON из каждой строки
-                            line_text = line.decode('utf-8')
-                            if line_text.startswith('data: '):
-                                line_text = line_text[6:]  # Убираем префикс "data: "
-                            
-                            if line_text.strip() == '[DONE]' or line_text.strip() == '':
-                                break
-                            
-                            data = json.loads(line_text)
-                            
-                            # Собираем информацию о токенах из каждого чанка
-                            if 'tokens_evaluated' in data:
-                                token_info['prompt_tokens'] = data['tokens_evaluated']
-                            if 'tokens_predicted' in data:
-                                token_info['completion_tokens'] = data['tokens_predicted']
-                            if 'tokens_total' in data:
-                                token_info['total_tokens'] = data['tokens_total']
-                            if 'usage' in data:
-                                usage = data['usage']
-                                if 'prompt_tokens' in usage:
-                                    token_info['prompt_tokens'] = usage['prompt_tokens']
-                                if 'completion_tokens' in usage:
-                                    token_info['completion_tokens'] = usage['completion_tokens']
-                                if 'total_tokens' in usage:
-                                    token_info['total_tokens'] = usage['total_tokens']
-                            
-                            # Извлекаем текст из ответа
-                            if 'content' in data:
-                                content = data['content']
-                                if isinstance(content, str):
-                                    accumulated_text += content
-                                    yield {'chunk': content, 'usage': token_info.copy()}
-                                elif content is not None:
-                                    content_str = str(content)
-                                    accumulated_text += content_str
-                                    yield {'chunk': content_str, 'usage': token_info.copy()}
-                            elif 'text' in data:
-                                text = data['text']
-                                if text and text not in accumulated_text:
-                                    new_text = text[len(accumulated_text):] if text.startswith(accumulated_text) else text
-                                    accumulated_text = text
-                                    if new_text:
-                                        yield {'chunk': new_text, 'usage': token_info.copy()}
-                            elif 'choices' in data and len(data['choices']) > 0:
-                                choice = data['choices'][0]
-                                if 'delta' in choice and 'content' in choice['delta']:
-                                    content = choice['delta']['content']
-                                    accumulated_text += content
-                                    yield {'chunk': content, 'usage': token_info.copy()}
-                                elif 'text' in choice:
-                                    text = choice['text']
-                                    if text and text not in accumulated_text:
-                                        new_text = text[len(accumulated_text):] if text.startswith(accumulated_text) else text
-                                        accumulated_text = text
-                                        if new_text:
-                                            yield {'chunk': new_text, 'usage': token_info.copy()}
-                        except json.JSONDecodeError:
-                            # Пропускаем не-JSON строки
-                            continue
-                        except Exception as e:
-                            logger.warning(f"Ошибка при обработке streaming данных: {e}")
-                            continue
-                
-                # Если получили данные, выходим
-                if accumulated_text:
-                    logger.info(f"Успешно получен streaming ответ от {url}, длина: {len(accumulated_text)}")
-                    return
-                else:
-                    logger.warning(f"Streaming запрос к {url} не вернул данных")
+                completion_params['max_tokens'] = max_tokens
+            
+            if tools:
+                completion_params['tools'] = tools
+            
+            stream = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages if messages is not None else [
+                    {"role": "user", "content": prompt or ""}
+                ],
+                temperature=temperature,
+                stop=stop or [],
+                stream=True,
+                **completion_params
+            )
+            
+            accumulated_text = ""
+            token_info = {}
+            
+            is_tool_call = False
+            tool_calls_acc = {}
+            
+            for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
                     
-            except requests.exceptions.RequestException as e:
-                logger.debug(f"Ошибка при streaming запросе к {url}: {e}")
-                continue
-            except Exception as e:
-                logger.exception(f"Неожиданная ошибка при streaming запросе к {url}: {e}")
-                continue
-        
-        # Если все endpoints не сработали
-        yield {'chunk': "Ошибка: Не удалось получить streaming ответ от llama-server.", 'usage': {}}
+                    if not is_tool_call and getattr(delta, 'tool_calls', None):
+                        is_tool_call = True
+                    
+                    if is_tool_call:
+                        if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                            for tc in delta.tool_calls:
+                                idx = tc.index
+                                if idx not in tool_calls_acc:
+                                    tool_calls_acc[idx] = {'id': tc.id, 'function': {'name': tc.function.name, 'arguments': ''}}
+                                if tc.function.arguments:
+                                    tool_calls_acc[idx]['function']['arguments'] += tc.function.arguments
+                    else:
+                        if delta.content:
+                            content = delta.content
+                            accumulated_text += content
+                            yield {'chunk': content, 'usage': token_info.copy()}
+                
+                # Update token usage information when available
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    token_info = {
+                        'prompt_tokens': chunk.usage.prompt_tokens if hasattr(chunk.usage, 'prompt_tokens') else 0,
+                        'completion_tokens': chunk.usage.completion_tokens if hasattr(chunk.usage, 'completion_tokens') else 0,
+                        'total_tokens': chunk.usage.total_tokens if hasattr(chunk.usage, 'total_tokens') else 0
+                    }
+            
+            # Send final usage
+            if not token_info or token_info.get('total_tokens', 0) == 0:
+                prompt_size = len(prompt or "")
+                if messages:
+                    prompt_size = sum(len(str(m.get("content") or "")) for m in messages)
+                estimated_tokens = prompt_size // 4 + len(accumulated_text) // 4
+                token_info = {
+                    'prompt_tokens': prompt_size // 4,
+                    'completion_tokens': len(accumulated_text) // 4,
+                    'total_tokens': estimated_tokens
+                }
+            
+            if is_tool_call:
+                # Tell the caller that a tool call was requested
+                yield {'tool_calls': list(tool_calls_acc.values()), 'usage': token_info, 'done': True}
+            else:
+                yield {'chunk': '', 'usage': token_info, 'done': True}
+            
+        except Exception as e:
+            logger.exception(f"Error during streaming generation via ChatGPT: {e}")
+            yield {'chunk': f"Error: {str(e)}", 'usage': {}}
     
-    def generate_chart_suggestion(self, data_summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Генерация предложения по графику на основе данных"""
-        prompt = self._build_chart_prompt(data_summary)
+    def generate_chart_suggestion(self, data_summary: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
+        """Generate a chart suggestion based on the given data summary."""
+        lang = lang if lang in ("ru", "uk", "en") else "ru"
+        prompt = self._build_chart_prompt(data_summary, lang=lang)
         response = self.generate(prompt, max_tokens=512, temperature=0.3)
         
-        # Пытаемся распарсить JSON из ответа
+        # Try to parse JSON from the response
         try:
-            # Ищем JSON в ответе
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+            text = response.get('text', '') if isinstance(response, dict) else response
+            # Look for JSON in the response text
+            json_start = text.find('{')
+            json_end = text.rfind('}') + 1
             if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+                json_str = text[json_start:json_end]
                 return json.loads(json_str)
         except:
             pass
         
-        # Если не удалось распарсить, возвращаем базовую структуру
+        # If parsing fails, return a basic structure
         return {
             "chart_type": "bar",
-            "title": "Анализ данных",
-            "description": response,
+            "title": "Data analysis",
+            "description": response.get('text', '') if isinstance(response, dict) else str(response),
             "labels": [],
             "datasets": []
         }
     
     def generate_insights(self, table_data: Dict[str, Any], question: str = "") -> str:
-        """Генерация выводов и рекомендаций на основе данных таблицы
+        """Generate insights and recommendations based on table data.
         
         Args:
-            table_data: Данные таблицы в формате {headers: [...], rows: [...]}
-            question: Исходный вопрос пользователя (если есть)
+            table_data: Table data in the form {headers: [...], rows: [...]}.
+            question: Optional original user question.
         
         Returns:
-            Текст с выводами и рекомендациями
+            Text with insights and recommendations.
         """
         prompt = self._build_insights_prompt(table_data, question)
         
-        # Используем более высокую temperature для более креативных выводов
-        # Увеличиваем max_tokens до 4096, чтобы ответ не обрезался (1500-2000 слов = ~3000-4000 токенов)
-        # Убираем агрессивные стоп-слова, которые могут остановить генерацию
         stop_tokens = [
-            "\n\n\n\n",  # Множественные пустые строки
+            "\n\n\n\n",  # Multiple consecutive empty lines
         ]
         
         result = self.generate(prompt, max_tokens=4096, temperature=0.7, stop=stop_tokens)
         
-        # Метод generate возвращает словарь с ключами 'text' и 'usage'
+        # The generate method returns a dict with keys 'text' and 'usage'
         if isinstance(result, dict):
             text = result.get('text', '')
             if not text:
-                # Если text пустой, пытаемся получить из других ключей
                 text = result.get('response', result.get('content', ''))
             if not text:
-                text = "Не удалось сгенерировать выводы. Попробуйте еще раз."
+                text = "Failed to generate insights. Please try again."
         elif isinstance(result, str):
             text = result
         else:
-            # Если результат не словарь и не строка, преобразуем в строку
-            logger.warning(f"generate_insights получил неожиданный тип результата: {type(result)}")
-            text = str(result) if result else "Не удалось сгенерировать выводы. Попробуйте еще раз."
-        
-        # Фильтруем английские слова из ответа
-        text = self._filter_english_words(text)
+            logger.warning(f"generate_insights got unexpected result type: {type(result)}")
+            text = str(result) if result else "Failed to generate insights. Please try again."
         
         return text
     
-    def _filter_english_words(self, text: str) -> str:
-        """Удаление английских слов из ответа"""
-        import re
-        
-        # Список английских слов и фраз, которые нужно заменить
-        english_replacements = [
-            (r'\bWe\s+need\b', 'Необходимо'),
-            (r'\bWe\s+can\b', 'Можно'),
-            (r'\bWe\s+should\b', 'Следует'),
-            (r'\bWe\s+must\b', 'Необходимо'),
-            (r'\bWe\s+have\b', 'Имеется'),
-            (r'\bWe\s+are\b', 'Имеется'),
-            (r'\bWe\b', 'Анализ показывает'),
-            (r'\bThe\s+data\b', 'Данные'),
-            (r'\bThe\s+analysis\b', 'Анализ'),
-            (r'\bThe\s+table\b', 'Таблица'),
-            (r'\bThe\b', ''),
-            (r'\bOkay\b', 'Примечательно'),
-            (r'\bKey\s+findings\b', 'Ключевые выводы'),
-            (r'\bTrend\s+analysis\b', 'Анализ тенденций'),
-            (r'\bRecommendations\b', 'Рекомендации'),
-            (r'\bProblem\s+areas\b', 'Проблемные области'),
-            (r'\bAnalysis\b', 'Анализ'),
-            (r'\bData\b', 'Данные'),
-            (r'\bTable\b', 'Таблица'),
-        ]
-        
-        # Заменяем известные английские фразы и слова
-        for pattern, replacement in english_replacements:
-            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-        
-        # Удаляем одиночные английские слова в начале предложений
-        # Список английских слов, которые часто встречаются в начале предложений
-        english_start_words = ['We', 'The', 'This', 'That', 'These', 'Those', 'It', 'They', 'There', 'Here']
-        
-        lines = text.split('\n')
-        filtered_lines = []
-        
-        for line in lines:
-            if not line.strip():
-                filtered_lines.append(line)
-                continue
-            
-            # Проверяем, начинается ли строка с английского слова
-            words = line.split()
-            if words:
-                first_word = re.sub(r'[^\w]', '', words[0])
-                if first_word in english_start_words:
-                    # Заменяем первое слово
-                    if first_word == 'We':
-                        words[0] = re.sub(r'\bWe\b', 'Анализ показывает', words[0], flags=re.IGNORECASE)
-                    elif first_word == 'The':
-                        words[0] = re.sub(r'\bThe\b', '', words[0], flags=re.IGNORECASE)
-                    else:
-                        # Удаляем английское слово в начале
-                        words = words[1:]
-            
-            # Удаляем одиночные английские слова в середине предложения
-            # Но только если это явно английские слова (не аббревиатуры, не числа)
-            filtered_words = []
-            for word in words:
-                clean_word = re.sub(r'[^\w]', '', word)
-                # Проверяем, является ли слово английским
-                # Игнорируем короткие слова (меньше 3 символов), слова с цифрами, аббревиатуры
-                if (len(clean_word) >= 3 and 
-                    clean_word.isalpha() and 
-                    clean_word.isascii() and
-                    clean_word.lower() in ['we', 'the', 'this', 'that', 'these', 'those', 'it', 'they', 'okay', 'key', 'trend', 'analysis', 'data', 'table', 'recommendations']):
-                    # Это известное английское слово - пропускаем
-                    logger.warning(f"Обнаружено английское слово в ответе: {word}, пропускаем")
-                    continue
-                filtered_words.append(word)
-            
-            if filtered_words:
-                filtered_lines.append(' '.join(filtered_words))
-            elif line.strip():  # Сохраняем пустые строки для форматирования
-                filtered_lines.append('')
-        
-        filtered_text = '\n'.join(filtered_lines)
-        
-        # Удаляем множественные пробелы
-        filtered_text = re.sub(r' +', ' ', filtered_text)
-        filtered_text = re.sub(r'\n\s*\n\s*\n+', '\n\n', filtered_text)
-        
-        # Удаляем пустые строки в начале и конце
-        filtered_text = filtered_text.strip()
-        
-        return filtered_text
-    
     def _build_insights_prompt(self, table_data: Dict[str, Any], question: str = "") -> str:
-        """Построение промпта для генерации выводов и рекомендаций"""
+        """Build a prompt for generating insights and recommendations."""
+        answer_lang = self._detect_language(question)
+        i18n = self._i18n(answer_lang)
+
         headers = table_data.get('headers', [])
         rows = table_data.get('rows', [])
         
-        # Форматируем данные таблицы для промпта
-        table_text = "Заголовки: " + ", ".join(headers) + "\n\n"
-        table_text += "Данные:\n"
+        # Format table data for the prompt
+        table_text = f"{i18n['headers']}: " + ", ".join(headers) + "\n\n"
+        table_text += f"{i18n['data']}:\n"
         
-        # Добавляем первые 20 строк для анализа (чтобы не перегружать промпт)
+        # Add the first 20 rows for analysis (to avoid overloading the prompt)
         max_rows = min(20, len(rows))
         for i, row in enumerate(rows[:max_rows]):
             row_text = " | ".join([str(cell) if cell is not None else "" for cell in row])
             table_text += f"{i+1}. {row_text}\n"
         
         if len(rows) > max_rows:
-            table_text += f"\n... (всего {len(rows)} строк)\n"
-        
-        prompt = f"""Ты - эксперт по анализу данных и бизнес-консультант.
+            table_text += "\n" + i18n["total_rows_fmt"].format(n=len(rows)) + "\n"
 
-═══════════════════════════════════════════════════════════════
-КРИТИЧЕСКИ ВАЖНО - ЯЗЫК ОТВЕТА:
-═══════════════════════════════════════════════════════════════
-- ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ - ЭТО ОБЯЗАТЕЛЬНО
-- НЕ ИСПОЛЬЗУЙ АНГЛИЙСКИЙ ЯЗЫК НИ В КАКОЙ ЧАСТИ ОТВЕТА
-- ВСЕ ЗАГОЛОВКИ, ПОДЗАГОЛОВКИ, ТАБЛИЦЫ, ТЕКСТ - ТОЛЬКО РУССКИЙ
-- ДАЖЕ ТЕХНИЧЕСКИЕ ТЕРМИНЫ ПЕРЕВОДИ НА РУССКИЙ
-- ВСЕ ЧИСЛА, РАСЧЕТЫ, ПРОЦЕНТЫ - С ПОДПИСЯМИ НА РУССКОМ
-- ЕСЛИ В ОТВЕТЕ БУДЕТ ХОТЯ БЫ ОДНО АНГЛИЙСКОЕ СЛОВО - ЭТО ОШИБКА
+        prompt = f"""You are a data analysis expert and business consultant.
 
-СТРОГО ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ:
-- "We" - НЕ ИСПОЛЬЗУЙ! Пиши "Анализ показывает", "Данные свидетельствуют"
-- "The" - НЕ ИСПОЛЬЗУЙ! Используй русские артикли или опускай
-- "Okay" - НЕ ИСПОЛЬЗУЙ! Пиши "Хорошо" или "Примечательно"
-- "Key findings" - НЕ ИСПОЛЬЗУЙ! Пиши "Ключевые выводы"
-- "Trend analysis" - НЕ ИСПОЛЬЗУЙ! Пиши "Анализ тенденций"
-- "Recommendations" - НЕ ИСПОЛЬЗУЙ! Пиши "Рекомендации"
-- Любые английские слова: "trend", "analysis", "data", "table", "chart"
-- Английские фразы: "We need", "We can", "We should", "The data"
+{self._language_policy_block()}
+{self._no_placeholder_numbers_block()}
+Answer language: {answer_lang}
 
-ОБЯЗАТЕЛЬНО ИСПОЛЬЗОВАТЬ:
-- Все заголовки на русском: "Ключевые выводы", "Анализ тенденций", "Проблемные области", "Рекомендации"
-- Все описания, расчеты, выводы - только на русском
-- Все таблицы с заголовками на русском языке
-- Начинай предложения с русских слов: "Анализ показывает", "Данные свидетельствуют", "Следует отметить"
+Use these section titles (in the answer language), but keep each section SHORT:
+- {i18n['section_key_findings']} — max 3 bullets; cite numbers once, do not repeat the whole table
+- {i18n['section_trend_analysis']} — max 2 bullets
+- {i18n['section_problem_areas']} — max 2 bullets
+- {i18n['section_recommendations']} — max 3 bullets
 
-ПРИМЕРЫ ПРАВИЛЬНОГО НАЧАЛА ОТВЕТА:
-✅ ПРАВИЛЬНО:
-"Анализ данных показывает следующие ключевые выводы. Общая сумма продаж составляет 28 159 129,74 рублей..."
+Do not duplicate the table as markdown in your answer; the user already sees the table.
+Every number and name in your text must appear verbatim from the table above (no X/Y/A/B/Z).
 
-❌ НЕПРАВИЛЬНО:
-"We need to analyze the data. The total sum is..."
-═══════════════════════════════════════════════════════════════
-
-Проанализируй следующие данные из таблицы и предоставь полный детальный анализ:
-
-1. **Ключевые выводы** - основные наблюдения и закономерности в данных
-   - Используй конкретные числа из таблицы
-   - Выдели аномалии и выбросы
-   - Проанализируй концентрацию данных
-   - Рассчитай средние значения, проценты, соотношения
-
-2. **Анализ трендов** - какие тенденции можно выделить
-   - Опиши динамику и закономерности
-   - Выяви связи между показателями
-
-3. **Проблемные области** - что требует внимания
-   - Низкая эффективность сделок
-   - Высокая концентрация рисков
-   - Неравномерное распределение
-
-4. **Рекомендации** - конкретные предложения по улучшению или оптимизации
-   - Практические шаги на основе данных
-   - Приоритетные направления работы
-
-Данные таблицы:
+Table data:
 {table_text}
-
 """
         
         if question:
-            prompt += f"Исходный вопрос пользователя: {question}\n\n"
+            prompt += f"{i18n['user_question']}: {question}\n\n"
         
-        prompt += """═══════════════════════════════════════════════════════════════
-ТРЕБОВАНИЯ К ОТВЕТУ:
-═══════════════════════════════════════════════════════════════
+        prompt += f"""{self._language_policy_block()}
+Quality requirements:
+- Total length roughly under 250 words unless the user explicitly asked for a long report
+- No markdown pipe tables; prose and bullets only
+- Complete all four sections with the bullet limits above
 
-ЯЗЫК - КРИТИЧЕСКИ ВАЖНО:
-- Ответ должен быть ПОЛНОСТЬЮ на русском языке - БЕЗ ИСКЛЮЧЕНИЙ
-- НИ ОДНОГО английского слова в ответе
-- Все заголовки: "Ключевые выводы", "Анализ тенденций", "Проблемные области", "Рекомендации"
-- Все подзаголовки, описания, выводы - только на русском
-- Все таблицы с заголовками на русском языке
-- Все расчеты с пояснениями на русском
-- НЕ НАЧИНАЙ предложения с "We", "The", "Okay" - используй русские фразы
-
-СТРУКТУРА И СОДЕРЖАНИЕ:
-- Используй структурированный формат с заголовками
-- Применяй маркированные списки для удобства чтения
-- Включай конкретные расчеты и цифры из таблицы
-- Используй таблицы для сравнения данных, если это уместно
-- Будь детальным и конкретным
-- НЕ ОБРЕЗАЙ ОТВЕТ - предоставь полный анализ всех разделов
-- Минимальная длина ответа: 1500-2000 слов
-- НЕ ОСТАНАВЛИВАЙСЯ раньше времени - продолжай генерацию до конца
-
-ПРИМЕР ПРАВИЛЬНОГО НАЧАЛА ОТВЕТА:
-"Анализ данных показывает следующие ключевые выводы. Общая сумма продаж составляет 28 159 129,74 рублей. Средняя сумма на компанию равна 2 815 912,97 рублей. Топ-3 компании концентрируют 49,5% от общей суммы продаж..."
-
-ПОВТОРЯЮ ЕЩЕ РАЗ:
-- ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ
-- НЕ ИСПОЛЬЗУЙ АНГЛИЙСКИЙ ЯЗЫК
-- НЕ ИСПОЛЬЗУЙ "We", "The", "Okay" и другие английские слова
-- ВСЕ ЗАГОЛОВКИ НА РУССКОМ: "Ключевые выводы", "Анализ тенденций", "Проблемные области", "Рекомендации"
-- НАЧИНАЙ предложения с русских фраз: "Анализ показывает", "Данные свидетельствуют", "Следует отметить"
-═══════════════════════════════════════════════════════════════
-
-Сформулируй полный детальный ответ ТОЛЬКО на русском языке.
-НЕ ИСПОЛЬЗУЙ английские слова. НЕ ОСТАНАВЛИВАЙСЯ раньше времени.
-
-Выводы и рекомендации:"""
+{i18n['conclusions']}:"""
         
         return prompt
     
-    def _build_analysis_prompt(self, data_summary: Dict[str, Any], question: str) -> str:
-        """Построение промпта для анализа данных
-        
-        ВАЖНО: Мы НЕ передаем данные в промпт, так как модель будет собирать их через Python код
+    def _build_analysis_messages(
+        self,
+        data_summary: Dict[str, Any],
+        question: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        lang: Optional[str] = None,
+    ) -> List[Dict[str, str]]:
+        """Build structured messages for data analysis (Function Calling).
+
+        IMPORTANT: For data-heavy tasks, the model MUST call the provided tools.
+        conversation_history: optional — previous messages to continue the dialog.
         """
-        # Не передаем данные в промпт - модель будет собирать их через код
-        # Только логируем для отладки
-        logger.info(f"Создаем промпт для генерации Python кода. Вопрос: {question[:100] if question else 'Нет вопроса'}")
+        logger.info(
+            "Building data-analysis prompt. Question: %s",
+            (question[:100] if question else "—"),
+        )
         
-        # Используем обычную строку вместо f-строки, чтобы избежать проблем с экранированием
-        prompt = """Ты - эксперт по написанию Python кода для работы с базой данных Django.
+        if lang:
+            lang_norm = (lang or "").split("-")[0].lower()
+            answer_lang = lang_norm if lang_norm in ("ru", "uk", "en") else "ru"
+        else:
+            answer_lang = self._detect_language(question)
+        i18n = self._i18n(answer_lang)
 
-КРИТИЧЕСКИ ВАЖНО: 
-- ТЫ ДОЛЖЕН ГЕНЕРИРОВАТЬ ТОЛЬКО PYTHON КОД, БЕЗ ТЕКСТОВЫХ ОТВЕТОВ
-- НЕ ПИШИ никаких объяснений, комментариев вне кода, текстовых ответов
-- НЕ ПИШИ на английском или русском языке - ТОЛЬКО КОД
-- Код должен быть в markdown блоке ```python ... ```
-- Код должен собирать данные из базы данных используя Django ORM напрямую
-- Код должен создавать переменную `result` со списком словарей для таблицы
-- Каждый словарь в списке - это строка таблицы, ключи - названия столбцов на русском языке
-- ВАЖНО: В f-строках правильно экранируй фигурные скобки - используй двойные скобки для экранирования
-- ВАЖНО: Все фигурные скобки в f-строках должны быть правильно закрыты
+        period_hint = ""
+        try:
+            period = (data_summary or {}).get("period")
+            if period:
+                period_hint = (
+                    "\n═══════════════════════════════════════════════════════════════\n"
+                    "UI FILTER SCOPE (querysets match the main dashboard filters; do not assume a broader DB slice):\n"
+                    f"{json.dumps(period, ensure_ascii=False)}\n"
+                    "═══════════════════════════════════════════════════════════════\n"
+                )
+        except Exception:
+            period_hint = ""
 
-ДОСТУПНЫЕ МОДЕЛИ DJANGO (УЖЕ ИМПОРТИРОВАНЫ, НЕ ИМПОРТИРУЙ ИХ!):
-- Sale - модель продаж (поля: id_number, manager, sale, company, account_number, salary, closing_date, title)
-- SalaryPayment - модель зарплатных выплат (поля: manager, amount, payment_datetime)
-- ProductionExpense - модель расходов (поля: employee, expense_type, amount, expense_date, comment)
-- BitrixUser - модель менеджеров (поля: user_id, name, last_name, is_admin)
-- Company - модель компаний (поля: company_id, title)
-- Employee - модель сотрудников (поля: name)
-- ExpenseType - модель типов расходов (поля: name)
+        system_msg = f"""You are a data analysis expert and business consultant working with a CRM database.
 
-КРИТИЧЕСКИ ВАЖНО - ИМПОРТ МОДЕЛЕЙ:
-- НЕ ИСПОЛЬЗУЙ импорты моделей типа: from myapp.models import Sale
-- НЕ ИСПОЛЬЗУЙ импорты моделей типа: from salary_app.models import Sale
-- Модели Sale, SalaryPayment, ProductionExpense, BitrixUser, Company, Employee, ExpenseType УЖЕ ДОСТУПНЫ в коде
-- Просто используй Sale.objects.all() БЕЗ импорта!
-- Импортируй ТОЛЬКО функции Django ORM: from django.db.models import Sum, Count, Avg, Max, Min, Q, F
+{self._language_policy_block()}
+{self._no_placeholder_numbers_block()}
+Answer language: {answer_lang}
+{period_hint}
+═══════════════════════════════════════════════════════════════
+AVAILABLE TOOLS (FUNCTION CALLING):
+═══════════════════════════════════════════════════════════════
+- You have access to database analytic functions (tools).
+- If the user asks for ANY number from the database (e.g. sales, comparisons, top managers, amounts, deals, expenses, salary payouts), you MUST call the provided tools.
+- If one question asks for BOTH salary/payout totals AND expenses (e.g. year summary), call tools for ``salary_payments`` and ``expenses`` (or use two aggregate calls). Do not answer with only one of them unless the user asked for a single stream.
+- Per-deal manager compensation (Ukr./Rus. e.g. "зарплата по сделкам", "кому скільки зарплати з угод", "сколько заработали на сделках" in the sense of CRM accrual) is the ``salary`` field on **sales** records. Use ``crm_analytics_aggregate`` with ``dataset: \"sales\"``, ``sales_amount_field: \"salary\"``, optional ``company_name_contains`` for the client company name, and ``group_by: \"manager\"`` when needed. Do **not** use ``salary_payments`` for that — that dataset is bank payouts without per-deal company linkage.
+- NEVER try to guess or hallucinate numbers. If you don't have the data, call a tool first.
+- The tools already apply the UI filters (dates, managers context). So if the user says "in May", pass months=[5] to the tool.
 
-ДОСТУПНЫЕ ФУНКЦИИ DJANGO ORM (ИМПОРТИРУЙ ИХ):
-- Sum, Count, Avg, Max, Min - агрегатные функции (импортируй: from django.db.models import Sum, Count)
-- Q, F - для сложных запросов (импортируй: from django.db.models import Q, F)
-- timezone, datetime, timedelta - для работы с датами (импортируй: from django.utils import timezone, from datetime import datetime, timedelta)
-
-ПРИМЕРЫ КОДА:
-
-Пример 1 - Анализ расходов по типам:
-```python
-from django.db.models import Sum, Count
-# НЕ ИМПОРТИРУЙ ProductionExpense - она уже доступна!
-
-expenses = ProductionExpense.objects.all()
-result = []
-
-expense_types = expenses.values('expense_type__name').annotate(
-    total=Sum('amount'),
-    count=Count('id')
-).order_by('-total')
-
-for exp_type in expense_types:
-    result.append({{
-        'Тип расхода': exp_type.get('expense_type__name', ''),
-        'Сумма': float(exp_type.get('total', 0) or 0),
-        'Количество': exp_type.get('count', 0)
-    }})
-```
-
-Пример 2 - Продажи по менеджерам:
-```python
-from django.db.models import Sum, Count
-# НЕ ИМПОРТИРУЙ Sale - она уже доступна!
-
-sales = Sale.objects.all()
-result = []
-
-managers = sales.values('manager__name', 'manager__last_name').annotate(
-    total_sales=Sum('sale'),
-    count=Count('id')
-).order_by('-total_sales')
-
-for manager in managers:
-    last_name = manager.get('manager__last_name', '') or ''
-    first_name = manager.get('manager__name', '') or ''
-    result.append({{
-        'Менеджер': f"{{last_name}} {{first_name}}".strip() or 'Не указан',
-        'Сумма продаж': float(manager.get('total_sales', 0) or 0),
-        'Количество сделок': manager.get('count', 0)
-    }})
-```
-
-Пример 3 - Расходы по месяцам:
-```python
-from django.db.models import Sum, Count
-from django.utils import timezone
-# НЕ ИМПОРТИРУЙ ProductionExpense - она уже доступна!
-
-expenses = ProductionExpense.objects.all()
-result = []
-
-monthly = expenses.extra(
-    select={{'month': "DATE_FORMAT(expense_date, '%%Y-%%m')"}}
-).values('month').annotate(
-    total=Sum('amount'),
-    count=Count('id')
-).order_by('month')
-
-for month_data in monthly:
-    result.append({{
-        'Месяц': month_data.get('month', ''),
-        'Сумма': float(month_data.get('total', 0) or 0),
-        'Количество': month_data.get('count', 0)
-    }})
-```
-
-ВАЖНО:
-- Используй только Django ORM для работы с БД
-- Всегда создавай переменную `result` со списком словарей
-- Названия столбцов должны быть на русском языке
-- Числовые значения должны быть float для правильного отображения
-- Сортируй результаты по убыванию суммы/количества, если это уместно
-- ВАЖНО: Используй .get() для доступа к значениям словарей, чтобы избежать ошибок
-- ВАЖНО: Не используй словари как ключи в других словарях или множествах
-- ВАЖНО: При работе с .values() всегда используй строковые ключи, не словари
-- ВАЖНО: При доступе к значениям из .values() используй .get() вместо прямого доступа по ключу
-
-Вопрос пользователя: """ + (question if question else "Проанализируй данные") + """
-
-Сгенерируй ТОЛЬКО Python код без каких-либо текстовых объяснений:
-
+CRITICAL FOR REPORTING DATA:
+- You may use several tool rounds: call tools again if you need another dataset or dimension
+  (e.g. sales totals, then expenses by type, then salary payments) before answering.
+- Once you have enough tool results, answer in natural language with factual numbers and stop calling tools.
+- For managers use their real names from the data.
+- Keep responses concise. Don't write a long preamble.
+- If the user asks "why", answer using facts returned by the tools (did one manager drop, did the average deal fall, etc.).
+- The web UI automatically draws bar/line charts from tabular tool results when appropriate.
+  Do NOT claim you cannot display charts; give numbers in text and let the UI show the graphic when a table is returned.
 """
+
+        out_messages: List[Dict[str, str]] = [{"role": "system", "content": system_msg}]
+
+        # Keep only recent dialog context to avoid prompt overload.
+        if conversation_history:
+            recent = conversation_history[-MAX_HISTORY_MESSAGES:]
+            for msg in recent:
+                role = msg.get("role", "")
+                if role not in ("user", "assistant"):
+                    continue
+                content = (msg.get("content") or "").strip()
+                tbl = (
+                    msg.get("table_data")
+                    or msg.get("table")
+                    or msg.get("tableData")
+                    or msg.get("table_data_json")
+                )
+
+                # Compact table preview in assistant message to ground follow-up questions.
+                table_note = ""
+                try:
+                    if isinstance(tbl, dict) and tbl.get("headers") and tbl.get("rows"):
+                        headers = [str(h) for h in (tbl.get("headers") or [])[:20]]
+                        rows = tbl.get("rows") or []
+                        preview_lines = []
+                        max_rows = min(5, len(rows))
+                        for row in rows[:max_rows]:
+                            if isinstance(row, (list, tuple)):
+                                preview_lines.append(" | ".join([str(c) if c is not None else "" for c in row[:20]]))
+                            elif isinstance(row, dict):
+                                preview_lines.append(" | ".join([str(row.get(h, "")) for h in headers]))
+                            else:
+                                preview_lines.append(str(row))
+                        table_note = (
+                            "\n[table context]\n"
+                            + "Headers: "
+                            + ", ".join(headers)
+                            + "\n"
+                            + "\n".join(preview_lines)
+                        )
+                        if len(rows) > max_rows:
+                            table_note += f"\n... ({len(rows)} total rows)"
+                    elif isinstance(tbl, str) and tbl.strip():
+                        table_note = "\n[table context]\n" + tbl.strip()[:1200]
+                except Exception:
+                    table_note = ""
+
+                msg_content = (content[:4000] + ("..." if len(content) > 4000 else "")) if content else ""
+                merged = (msg_content + table_note).strip()
+                if merged:
+                    out_messages.append({"role": role, "content": merged})
+
+        out_messages.append({
+            "role": "user",
+            "content": question if question else "Analyze the data",
+        })
+        return out_messages
         
-        return prompt
-    
-    def _build_chart_prompt(self, data_summary: Dict[str, Any]) -> str:
-        """Построение промпта для генерации предложения по графику"""
-        prompt = f"""Ты - эксперт по визуализации данных. На основе следующих данных предложи оптимальный тип графика и его структуру.
 
-ВАЖНО: Весь ответ должен быть ТОЛЬКО на русском языке. Все названия, описания и метки должны быть на русском языке.
+    def _build_chart_prompt(self, data_summary: Dict[str, Any], lang: str = "ru") -> str:
+        """Build the prompt for generating a chart suggestion."""
+        answer_lang = lang if lang in ("ru", "uk", "en") else "ru"
 
-Данные:
+        # Keep a single English JSON schema example and enforce language via rules below.
+        # This avoids mixing languages in the prompt text while still requiring localized output.
+        json_template = """{
+    "chart_type": "bar|line|pie|doughnut",
+    "title": "Chart title",
+    "description": "What the chart shows",
+    "labels": ["label1", "label2", "..."],
+    "datasets": [
+        {
+            "label": "Dataset name",
+            "data": [value1, value2, "..."]
+        }
+    ]
+}"""
+
+        prompt = f"""You are a data visualization expert. Based on the following data, propose the optimal chart type and structure.
+
+{self._language_policy_block()}
+Answer language: {answer_lang}
+
+Data:
 {json.dumps(data_summary, ensure_ascii=False, indent=2)}
 
-Верни ответ в формате JSON:
-{{
-    "chart_type": "bar|line|pie|doughnut",
-    "title": "Название графика",
-    "description": "Описание что показывает график",
-    "labels": ["метка1", "метка2", ...],
-    "datasets": [
-        {{
-            "label": "Название набора данных",
-            "data": [значение1, значение2, ...]
-        }}
-    ]
-}}
+Return ONLY valid JSON in this schema (no extra text):
+{json_template}
 
-КРИТИЧЕСКИ ВАЖНО: Ответ должен быть только валидным JSON. Все текстовые поля (title, description, labels, label) должны быть на русском языке. Не используй английский язык."""
+CRITICAL: Output must be valid JSON only.
+- All human-readable text fields (title, description, labels, datasets[].label) must be in the selected answer language ({answer_lang}):
+  - ru: Russian
+  - uk: Ukrainian
+  - en: English
+"""
         return prompt
 
 
-# Глобальный экземпляр сервиса (singleton)
+# Global LLM service singleton
 _llm_service = None
 
 def get_llm_service() -> LLMService:
-    """Получение глобального экземпляра LLM сервиса"""
+    """Get global singleton instance of LLM service."""
     global _llm_service
     if _llm_service is None:
         _llm_service = LLMService()

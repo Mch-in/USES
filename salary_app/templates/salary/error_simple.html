@@ -1,0 +1,24 @@
+{% extends "salary/index.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block body %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card sales-report-card mt-4">
+      <div class="card-header sales-report-header py-3">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>{% trans 'Sales update operation' %}</h5>
+      </div>
+      <div class="card-body text-center">
+        <p class="mb-3" style="color: var(--text-primary);">
+          {{ message }}
+        </p>
+        <a href="{% url 'sales_list' %}" class="btn btn-primary">
+          {% trans 'Return to sales list' %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
