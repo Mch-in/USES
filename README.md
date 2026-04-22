@@ -187,20 +187,30 @@ pip install -r requirements.txt
 ### 4. Configure Environment Variables
 Copy the sample configuration file and fill it in:
 ```bash
-# macOS/Linux/Windows(Git Bash)
+# macOS/Linux/Windows (Git Bash)
 cp .env.example .env
 
-# Windows(CMD)
+# Windows (CMD)
 copy .env.example .env
+
+# Windows (PowerShell)
+Copy-Item .env.example .env
 ```
 
 | Variable | Description | Required |
 | ---------- | :--- | :---: |
-| `SECRET_KEY` | Django secret key | ✅ |
+| `SECRET_KEY` | Django secret key (required for production; set in local too) | ✅ |
 | `DEBUG` | Enable debug mode (`True` / `False`) | ✅ |
-| `CRM_WEBHOOK_BASE` | Valid CRM24 webhook URL for synchronization | ✅ |
-| `OPENAI_API_KEY` | OpenAI API access token for AI analytics | ❌ |
-| `DB_USER`, `DB_PASSWORD`... | MySQL connection parameters (if MySQL is used) | ❌ |
+| `CRM_WEBHOOK_BASE` | Valid CRM24 webhook URL for synchronization (app will not start without it) | ✅ |
+| `CRM_CONNECT_TIMEOUT`, `CRM_READ_TIMEOUT` | CRM API timeouts in seconds (defaults: `30` / `120`) | ❌ |
+| `GPT_MODEL_TYPE` | LLM backend type (default: `openai`) | ❌ |
+| `OPENAI_API_KEY` | API key for AI analytics | ❌ |
+| `OPENAI_MODEL` | Model name (default: `gpt-4o`) | ❌ |
+| `OPENAI_API_BASE` | Optional custom OpenAI-compatible endpoint URL | ❌ |
+| `DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | Database connection settings | ✅* |
+
+\* For production, set database credentials explicitly in `.env`/secret storage.  
+\* By default, the project is configured for MySQL (`DB_ENGINE=django.db.backends.mysql`).
 
 ### 5. Run DB Migrations and Create a Superuser
 ```bash

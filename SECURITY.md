@@ -1,34 +1,34 @@
-# Отчёт по безопасности проекта Salary
+# Salary Project Security Report
 
-## Исправлено в рамках проверки
+## Fixed During the Review
 
-### 1. Импорт и статус импорта без аутентификации (критично)
-- **Было:** Эндпоинты `index` (POST — запуск импорта из CRM24) и `api/import/status/` (GET) были доступны без входа.
-- **Риск:** Любой мог запускать импорт и получать статус, нагружать CRM API и видеть прогресс.
-- **Исправлено:** На оба представления добавлен декоратор `@login_required`.
+### 1. Import and import status without authentication (critical)
+- **Before:** The `index` endpoint (POST - starts import from CRM24) and `api/import/status/` (GET) were accessible without login.
+- **Risk:** Anyone could trigger imports, request status, overload the CRM API, and view progress.
+- **Fixed:** The `@login_required` decorator was added to both views.
 
-### 2. Выполнение кода с возможностью записи в БД (критично)
-- **Было:** В `CodeExecutor` выполнялся код, сгенерированный LLM, с полным доступом к Django-моделям. Теоретически в коде могли оказаться вызовы `.delete()`, `.update()`, `.create()`, `.save()` и т.п.
-- **Риск:** Пользователь или некорректный ответ модели мог привести к изменению или удалению данных.
-- **Исправлено:** В `_check_forbidden()` добавлена проверка на операции записи: `.delete()`, `.update(`, `.create(`, `.bulk_create(`, `.get_or_create(`, `.update_or_create(`, `.save(`. Такой код отклоняется до выполнения.
+### 2. Arbitrary Python execution in the AI flow (critical)
+- **Before:** Previously, the risk was tied to dynamic Python code execution in the AI path.
+- **Risk:** This approach can allow unwanted data operations and makes a secure boundary harder to guarantee.
+- **Current state:** The main AI path has been moved to **Function Calling (tool agent)** via a fixed set of server-side functions `crm_analytics_*`; no arbitrary user Python execution is used in the active flow.
 
 ---
 
-## Рекомендации (нужны ваши действия)
+## Recommendations (action required)
 
-### 3. Секреты и настройки для production (высокий приоритет)
+### 3. Secrets and production settings (high priority)
 
-- **SECRET_KEY:** В production обязательно задавайте `SECRET_KEY` через переменную окружения. Иначе используется `dev-insecure-secret-key` (в production приложение падает, но для staging/теста — недопустимо).
-- **DEBUG:** Задайте `DEBUG=False` в production (через `DEBUG=0` или отсутствие переменной в .env).
-- **Пароль БД:** В `settings.py` указан дефолт `'PASSWORD': os.getenv('DB_PASSWORD', '20014328')`. В production всегда задавайте `DB_PASSWORD` в .env и не храните пароли в репозитории.
-- **ALLOWED_HOSTS:** Добавьте ваш production-домен в `ALLOWED_HOSTS` (сейчас только `.ngrok-free.app`, `localhost`, `127.0.0.1`).
+- **SECRET_KEY:** In production, always set `SECRET_KEY` via environment variables. Otherwise, `dev-insecure-secret-key` is used (the app fails in production mode, but this is still unacceptable for staging/test).
+- **DEBUG:** Set `DEBUG=False` in production (via `DEBUG=0` or by omitting it in `.env`).
+- **DB password:** In `settings.py`, the password is read from `DB_PASSWORD` (default is an empty string). In production, always set `DB_PASSWORD` in `.env`/deployment secrets and never store passwords in the repository.
+- **ALLOWED_HOSTS:** Add your production domain to `ALLOWED_HOSTS` (currently only `.ngrok-free.app`, `localhost`, `127.0.0.1`).
 
-### 4. Заголовки и cookies для HTTPS (высокий приоритет для production)
+### 4. HTTPS headers and cookies (high priority for production)
 
-Рекомендуется в production включить (например, в конце `settings.py` или в отдельном профиле):
+It is recommended to enable the following in production (for example, at the end of `settings.py` or in a separate profile):
 
 ```python
-# Production security (раскомментировать при деплое на HTTPS)
+# Production security (uncomment when deploying over HTTPS)
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -40,50 +40,43 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 ```
 
-### 5. API-ключи
+### 5. API keys
 
-- **OPENAI_API_KEY** и **CRM_WEBHOOK_BASE** загружаются из окружения — это верно. Храните их только в `.env` (и в секретах CI/деплоя), не коммитьте `.env`.
+- **OPENAI_API_KEY** and **CRM_WEBHOOK_BASE** are loaded from environment variables, which is correct. Keep them only in `.env` (and CI/deployment secrets), and do not commit `.env`.
 
-### 6. Регистрация и доступ
+### 6. Registration and access control
 
-- Страница регистрации пользователей (`/register/`) защищена `@login_required` и `@admin_required` — только админ может создавать учётки.
-- `register_with_manager` (редирект на `/register?manager_id=...`) не защищён — любой может вызвать редирект. Риск низкий (утечка только факта существования manager_id). При желании можно повесить `@login_required` на этот view.
+- The user registration page (`/register/`) is protected by `@login_required` and `@admin_required` - only admins can create accounts.
+- `register_with_manager` (redirect to `/register?manager_id=...`) is not protected - anyone can trigger the redirect. Risk is low (only the existence of `manager_id` may be inferred). You may add `@login_required` to this view if needed.
 
-### 7. Зависимости
+### 7. Dependencies
 
-- Регулярно обновляйте пакеты: `pip list --outdated`, обновление Django и `requests` в приоритете.
-- Перед деплоем можно проверить уязвимости: `pip install safety && safety check`.
-
----
-
-## Что уже сделано хорошо
-
-- Включены CSRF middleware и валидация CSRF для форм/API.
-- Используются стандартные валидаторы паролей Django (длина, похожесть на атрибуты пользователя, типичные пароли).
-- Чувствительные представления закрыты `@login_required` и при необходимости `@admin_required`.
-- В шаблонах для пользовательского контента используется экранирование (например, `|escape` для комментариев).
-- В `CodeExecutor` ограничены импорты и встроенные функции, выполнение кода изолировано; после доработок запрещены операции записи в БД.
+- Update packages regularly: `pip list --outdated`; prioritize updates for Django and `requests`.
+- Before deployment, check vulnerabilities: `pip install safety && safety check`.
 
 ---
 
-## Текущий AI-контур (production)
+## What Is Already Done Well
 
-В актуальной версии основной путь AI-аналитики построен на **Function Calling (tool agent)**:
+- CSRF middleware and CSRF validation for forms/API are enabled.
+- Standard Django password validators are used (length, similarity to user attributes, common passwords).
+- Sensitive views are protected by `@login_required` and `@admin_required` where required.
+- User content is escaped in templates (for example, `|escape` for comments).
+- The main AI path uses a limited set of server tools `crm_analytics_*` (Function Calling), without executing arbitrary user Python code.
 
-- модель вызывает фиксированный набор серверных функций (`crm_analytics_*`);
-- доступ к данным ограничен текущими фильтрами UI и правами пользователя;
-- аналитический контур работает в read-only режиме по отношению к бизнес-данным;
-- отсутствует исполнение произвольного пользовательского Python-кода в основном AI-потоке.
+---
 
-## AI sandbox (CodeExecutor, legacy/optional)
+## Current AI Flow (production)
 
-Ниже описаны меры защиты для режима генерации и выполнения динамического Python-кода (подход Code Interpreter). Этот контур рассматривается как **legacy/optional** и требует дополнительного hardening перед публичным использованием.
+In the current version, the main AI analytics path is based on **Function Calling (tool agent)**:
 
-- **Запрет мутаций БД (read-only):** регулярные выражения блокируют попытки записи: `.save()`, `.delete()`, `.update()`, `.create()` и родственные вызовы.
-- **Защита от интроспекции (sandbox escape):** запрещены опасные функции и магические методы: `getattr`, `setattr`, `hasattr`, `type`, `__class__`, `__subclasses__`, `__globals__`, `__dict__` и др., чтобы затруднить выход из песочницы через цепочку базовых классов и подмену окружения. Фильтрация использует поиск токенов в коде (в т.ч. с учётом границ в RegEx).
-- **Блокировка ввода-вывода и процессов:** нет доступа к модулям `os`, `sys`, `subprocess`, `importlib`, а также к `open()`, `eval()`, вложенному `exec()`.
-- **Изолированные globals:** код выполняется с урезанным `__builtins__` — только безопасные встроенные возможности (арифметика, `json`, `datetime` и т.п.) и ограниченный набор сущностей Django ORM, переданных извне.
+- the model calls a fixed set of server-side functions (`crm_analytics_*`);
+- data access is limited by current UI filters and user permissions;
+- the analytics flow runs in read-only mode with respect to business data;
+- arbitrary user Python code execution is not used in the main AI flow.
 
-Это не замена полноценной изоляции на уровне ОС (контейнер, отдельный worker с минимальными правами). Для публичного или многоарендного деплоя имеет смысл дополнительно ограничить сеть, ресурсы и перечень доступных данных на уровне приложения.
+## Legacy note
 
-Дата проверки: 2025-02-20.
+The legacy `CodeExecutor` sandbox path (dynamic Python execution) is not the current production path and is not used in the main AI flow.
+
+Re-check date: 2026-04-22.
