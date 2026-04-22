@@ -1,6 +1,6 @@
 <div align="center">
-  <h1>💼 SalaryApp CRM & Analysis</h1>
-  <p><strong>Многофункциональная ERP/CRM система для учета зарплат, производственных расходов и умной AI-аналитики.</strong></p>
+  <h1>💼 USES CRM & Analysis</h1>
+  <p><strong>A multifunctional ERP/CRM system for salary accounting, production expenses, and smart AI analytics.</strong></p>
 
   <p>
     <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" alt="Python v3.10+">
@@ -12,180 +12,180 @@
 
 ---
 
-## 📋 Оглавление
-- [О проекте](#-о-проекте)
-  - [Что нового в AI версии](#-что-нового-в-ai-версии)
-  - [Ключевой функционал](#-ключевой-функционал)
-  - [Как работает Умная Аналитика](#ai-analytics)
-- [Стек технологий](#-стек-технологий)
-- [Структура проекта](#-структура-проекта)
-- [Скриншоты](#-скриншоты-)
-- [Установка и запуск (Локально)](#-установка-и-запуск-локально)
-- [Тестирование](#-тестирование)
-- [Развертывание (Production)](#-развертывание-production)
-- [Вклад в проект](#-вклад-в-проект)
-- [Контакты](#-контакты)
-- [Лицензия](#-лицензия)
+## 📋 Table of Contents
+- [About the Project](#-about-the-project)
+  - [What's New in the AI Version](#-whats-new-in-the-ai-version)
+  - [Key Features](#-key-features)
+  - [How Smart Analytics Works](#-how-smart-analytics-works-tool-agent--function-calling-)
+- [Technology Stack](#-technology-stack)
+- [Project Structure](#-project-structure)
+- [Screenshots](#-screenshots-)
+- [Installation and Launch (Local)](#-installation-and-launch-local)
+- [Testing](#-testing)
+- [Deployment (Production)](#-deployment-production)
+- [Contributing](#-contributing)
+- [Contacts](#-contacts)
+- [License](#-license)
 
 ---
 
-## 📖 О проекте
+## 📖 About the Project
 
-**SalaryApp** — это полноценное веб-приложение, предназначенное для бизнеса, нуждающегося в автоматизации учета финансов. Приложение позволяет интегрироваться с внешними CRM системами для синхронизации сделок и менеджеров, управлять производственными расходами и предоставляет мощный инструмент AI-аналитики на базе OpenAI (ChatGPT) для анализа финансовых показателей.
+**USES** is a full-featured web application designed for businesses that need automated financial accounting. The app integrates with external CRM systems to sync deals and managers, manages production expenses, and provides a powerful OpenAI (ChatGPT)-based AI analytics tool for financial analysis.
 
-### 🎯 Для кого и какую проблему решает
+### 🎯 Who It Is For and What Problem It Solves
 
-**Для кого:** компании с отделом продаж и регулярными выплатами сотрудникам (проценты/бонусы), где важно прозрачно считать зарплаты и контролировать расходы.
+**Who it is for:** companies with a sales department and regular employee payouts (commissions/bonuses), where transparent salary calculations and expense control are essential.
 
-**Боль, которую закрывает:** ручные таблицы и “разрозненные цифры” → ошибки в начислениях, потеря времени, сложность быстро объяснить итоговые суммы и причины отклонений.
+**Pain points it solves:** manual spreadsheets and “scattered numbers” -> payroll miscalculations, wasted time, and difficulty quickly explaining final totals and reasons for deviations.
 
-### ✅ Ключевые преимущества для бизнеса
+### ✅ Key Business Benefits
 
-- **Прозрачность:** понятно, из чего складываются начисления/выплаты и затраты.
-- **Скорость:** быстрые отчёты за период без ручных сверок.
-- **Контроль:** единая точка правды по расходам и зарплатам.
-- **Готовность к отчётности:** выгрузка данных по зарплатам и расходам в Excel для бухгалтерии.
+- **Transparency:** clear visibility into how payroll accruals/payouts and expenses are formed.
+- **Speed:** fast period-based reporting without manual reconciliation.
+- **Control:** a single source of truth for expenses and salaries.
+- **Reporting readiness:** export salary and expense data to Excel for accounting.
 
-### 🆕 Что нового в AI версии
+### 🆕 What's New in the AI Version
 
-- **Новый движок аналитики:** переход с генерации исполняемого кода на управляемый `tool calling` агентный цикл.
-- **Фактические ответы по данным:** модель сначала вызывает серверные функции, затем формирует выводы на основе полученных цифр.
-- **Многошаговые запросы:** AI может делать несколько последовательных вызовов инструментов в одном вопросе (например, сравнение продаж + расходов + выплат).
-- **Лучший контроль доступа:** аналитика работает только в рамках текущих фильтров интерфейса и прав пользователя.
-- **Стабильнее в production:** меньше рисков от произвольного выполнения кода и более предсказуемое поведение для бизнес-отчетов.
+- **New analytics engine:** migrated from executable code generation to a controlled `tool calling` agent loop.
+- **Fact-based data answers:** the model first calls server-side functions, then builds conclusions from returned figures.
+- **Multi-step queries:** AI can perform several sequential tool calls in one request (e.g., comparing sales + expenses + payouts).
+- **Better access control:** analytics works strictly within active UI filters and user permissions.
+- **More stable in production:** reduced risk from arbitrary code execution and more predictable behavior for business reports.
 
-### ✨ Ключевой функционал
+### ✨ Key Features
 
-- 🔄 **Интеграция с внешними CRM:** Получение информации о менеджерах, компаниях и новых сделках через защищенный Webhook API.
-- ⏱️ **Надежный импорт с прогрессом:** Защита от параллельного запуска, поэтапный прогресс/ETA и retry при временных сетевых ошибках CRM API.
-- 💰 **Учет зарплат и выплат:** Автоматический расчет заработной платы на основе закрытых сделок и фиксация фактических выплат сотрудникам.
-- 🏭 **Производственные расходы:** Контроль трат предприятия, разделение расходов по типам и ответственным сотрудникам.
-- 📊 **Экспорт в Excel:** Возможность сохранять данные по зарплатам и расходам в Excel-файл для отчетности и передачи в бухгалтерию.
-- 🤖 **Умная AI-Аналитика:** Tool-calling AI-ассистент с многошаговыми запросами, streaming-ответами, историей диалогов и сохранением табличных результатов.
-- 🛡️ **Система прав:** Авторизация и доступ к инструментам администратора и аналитика.
-- 🧾 **Операционные UX-функции:** Печать подтверждения выплаты/расхода и быстрый расчет остатка к выплате по менеджеру.
-- 🌐 **Язык интерфейса:** переключение RU / UK / EN в интерфейсе (Django i18n).
-- 🌓 **Тема оформления:** светлая и тёмная тема; выбор сохраняется в браузере (localStorage).
+- 🔄 **External CRM integration:** receive managers, companies, and new deals via a secure Webhook API.
+- ⏱️ **Reliable import with progress:** protected from parallel runs, step-by-step progress/ETA, and retry logic for temporary CRM API network errors.
+- 💰 **Salary and payout accounting:** automatic salary calculations based on closed deals with actual payout tracking.
+- 🏭 **Production expenses:** monitor company spending, split expenses by type and responsible employees.
+- 📊 **Excel export:** save salary and expense data to Excel for reporting and accounting handoff.
+- 🤖 **Smart AI Analytics:** tool-calling AI assistant with multi-step queries, streaming responses, chat history, and saved tabular results.
+- 🛡️ **Permission system:** authorization and role-based access to admin and analytics tools.
+- 🧾 **Operational UX features:** print payout/expense confirmations and quickly calculate manager payout balances.
+- 🌐 **Interface language:** switch RU / UK / EN in UI (Django i18n).
+- 🌓 **Theme support:** light and dark themes; choice is persisted in browser (`localStorage`).
 
-### 🧠 Как работает Умная Аналитика (Tool Agent / Function Calling) <a name="ai-analytics"></a>
+### 🧠 How Smart Analytics Works (Tool Agent / Function Calling) <a name="ai-analytics"></a>
 
-**Просто о главном:** вы задаёте вопрос на обычном языке (“почему просели продажи?”, “сколько выплатили по месяцам?”, “кто лидер по сделкам?”), а система сама подбирает нужные аналитические запросы к БД, строит таблицу и формирует выводы — без ручных SQL/Excel.
+**In plain terms:** you ask a natural-language question ("why did sales drop?", "how much was paid by month?", "who is the top deal performer?"), and the system selects the required DB analytics queries, builds a table, and generates conclusions - without manual SQL/Excel work.
 
-В текущей версии используется **agent-loop на Function Calling** (без генерации и `exec()` произвольного Python-кода). По сути это «AI-аналитик с безопасным набором инструментов», а не интерпретатор произвольных скриптов:
+The current version uses an **agent loop based on Function Calling** (without generating and `exec()`-ing arbitrary Python code). In other words, it is an "AI analyst with a safe set of tools," not an interpreter for arbitrary scripts:
 
-1. **Запрос + контекст:** Пользователь отправляет вопрос. Приложение передает модели контекст (история диалога, текущие фильтры дашборда, язык вопроса RU/UK/EN).
-2. **Вызов серверных инструментов:** Модель вызывает строго заданные функции:
-   - `crm_analytics_aggregate` — агрегаты (суммы, количество, среднее, максимум) по продажам/расходам/выплатам;
-   - `crm_analytics_list` — детальные строки записей;
-   - `crm_analytics_compare_months` — сравнение месяцев и top-сделки.
-3. **Безопасное выполнение:** Инструменты работают только с уже отфильтрованными QuerySet'ами (учет прав и периода из UI), без доступа к системным операциям и модификации данных.
-4. **Многошаговый агентный цикл:** Если данных недостаточно, модель делает дополнительные tool-вызовы (несколько раундов), затем собирает единый ответ по фактам.
-5. **Результат в UI:** Пользователь получает текстовый разбор + табличные данные; ответ сохраняется в историю AI-аналитики для повторного просмотра.
-6. **Визуализация:** при наличии табличного результата интерфейс может автоматически строить графики для более быстрого чтения динамики.
+1. **Request + context:** the user sends a question. The app passes context to the model (chat history, active dashboard filters, question language RU/UK/EN).
+2. **Server tool calls:** the model calls strictly defined functions:
+   - `crm_analytics_aggregate` - aggregates (sum, count, average, max) for sales/expenses/payouts;
+   - `crm_analytics_list` - detailed record rows;
+   - `crm_analytics_compare_months` - month comparison and top deals.
+3. **Safe execution:** tools run only on pre-filtered querysets (respecting UI permissions and period), without access to system operations or data modification.
+4. **Multi-step agent loop:** if data is insufficient, the model makes additional tool calls (multiple rounds), then builds one consolidated fact-based response.
+5. **UI result:** the user receives text analysis + tabular data; the response is saved in AI analytics history for later review.
+6. **Visualization:** when tabular output exists, the UI can automatically build charts for faster trend reading.
 
-#### 🔒 Безопасность AI-аналитики
+#### 🔒 AI Analytics Security
 
-- Используется ограниченный набор серверных функций (Function Calling), а не выполнение произвольного пользовательского кода.
-- Все выборки делаются в рамках доступных пользователю QuerySet'ов и текущих фильтров интерфейса.
-- Аналитический контур проектирован как **read-only** по отношению к бизнес-данным (без изменения записей через AI-инструменты).
-- Подробные рекомендации по hardening и production-настройкам — в **[SECURITY.md](SECURITY.md)**.
+- A limited set of server-side functions (Function Calling) is used instead of arbitrary user code execution.
+- All data selections stay within user-accessible querysets and active UI filters.
+- The analytics layer is designed as **read-only** for business data (no record modifications via AI tools).
+- Detailed hardening and production security recommendations are in **[SECURITY.md](SECURITY.md)**.
 
 ---
 
-## 🛠 Стек технологий
+## 🛠 Technology Stack
 
 - **Backend:** Python 3.10+, Django 5.x
-- **База данных:** MySQL (production-ready)
-- **AI Интеграция:** OpenAI-compatible API + tool calling (agent-loop); поддержка моделей класса GPT-4o / GPT-OSS через совместимый endpoint
-- **Frontend:** HTML5, Bootstrap 5, Vanilla JS, кастомные анимации и интерактивные графики.
-- **Сервер (Production):** Gunicorn + WhiteNoise для раздачи статики.
+- **Database:** MySQL (production-ready)
+- **AI Integration:** OpenAI-compatible API + tool calling (agent loop); support for GPT-4o / GPT-OSS class models via compatible endpoint
+- **Frontend:** HTML5, Bootstrap 5, Vanilla JS, custom animations, and interactive charts.
+- **Server (Production):** Gunicorn + WhiteNoise for static files.
 
-Рекомендации по секретам, HTTPS и hardening — в **[SECURITY.md](SECURITY.md)**.
+Recommendations for secrets, HTTPS, and hardening are in **[SECURITY.md](SECURITY.md)**.
 
 ---
 
-## 🗂 Структура проекта
+## 🗂 Project Structure
 
 ```text
-├── salary_app/              # Основное приложение Django
-│   ├── ai_views.py          # AI-поток: tool calling, история диалогов, SSE-ответы
-│   ├── ai_tools.py          # Серверные аналитические функции crm_analytics_*
-│   ├── llm_service.py       # Интеграция с OpenAI-compatible API и agent-loop
-│   ├── views/               # Представления (Views)
-│   ├── models/              # Модели базы данных
-│   ├── templates/           # HTML шаблоны
-│   └── static/              # JS скрипты, CSS и статические ассеты
-├── salary/                  # Настройки проекта Django (settings.py, urls.py)
-├── requirements.txt         # Зависимости Python
-├── .env.example             # Пример файла переменных окружения
-└── manage.py                # Утилита управления Django
+├── salary_app/              # Main Django application
+│   ├── ai_views.py          # AI flow: tool calling, chat history, SSE responses
+│   ├── ai_tools.py          # Server analytics functions crm_analytics_*
+│   ├── llm_service.py       # OpenAI-compatible API integration and agent loop
+│   ├── views/               # View handlers
+│   ├── models/              # Database models
+│   ├── templates/           # HTML templates
+│   └── static/              # JS scripts, CSS, and static assets
+├── salary/                  # Django project settings (settings.py, urls.py)
+├── requirements.txt         # Python dependencies
+├── .env.example             # Example environment variables file
+└── manage.py                # Django management utility
 ```
 
 ---
 
-## 📸 Скриншоты <a name="screenshots"></a>
-Ниже — несколько реальных экранов из приложения.
+## 📸 Screenshots <a name="screenshots"></a>
+Below are several real screens from the application.
 
-| Логин | Дашборд (итоги) | Дашборд (график) |
+| Login | Dashboard (totals) | Dashboard (chart) |
 | :---: | :---: | :---: |
 | <img src="docs/images/login_page.png" alt="Login page" width="100%"> | <img src="docs/images/dashboard_totals_light.png" alt="Dashboard totals" width="100%"> | <img src="docs/images/dashboard_chart_light.png" alt="Dashboard chart" width="100%"> |
 
-| Зарплатный отчёт (тёмная тема) | Список расходов (тёмная тема) | Редактирование расхода |
+| Salary report (dark theme) | Expense list (dark theme) | Expense editing |
 | :---: | :---: | :---: |
 | <img src="docs/images/salary_report_dark.png" alt="Salary report (dark)" width="100%"> | <img src="docs/images/expenses_list_dark.png" alt="Expenses list (dark)" width="100%"> | <img src="docs/images/expense_edit_modal.png" alt="Expense edit modal" width="100%"> |
 
-| AI-чат (тёмная тема) | Таблица аналитики AI | Лог AI / выполнения |
+| AI chat (dark theme) | AI analytics table | AI / execution log |
 | :---: | :---: | :---: |
 | <img src="docs/images/ai_chat_dark.png" alt="AI chat (dark)" width="100%"> | <img src="docs/images/ai_analytics_table.png" alt="AI analytics table" width="100%"> | <img src="docs/images/ai_log.png" alt="AI log" width="100%"> |
 
-| Пользователи | Расходы (расширенный вид) | Печать подтверждения выплаты |
+| Users | Expenses (expanded view) | Print payout confirmation |
 | :---: | :---: | :---: |
 | <img src="docs/images/user_list.png" alt="Users list" width="100%"> | <img src="docs/images/expenses_list_expanded_dark.png" alt="Expenses list expanded (dark)" width="100%"> | <img src="docs/images/print_payment_confirmation.png" alt="Print payment confirmation" width="100%"> |
 
-### 📝 Описание экранов
+### 📝 Screen Descriptions
 
-- **Логин**: вход в систему и базовая точка проверки доступа/ролей.
-- **Дашборд (итоги)**: ключевые суммарные показатели за период в одном месте.
-- **Дашборд (график)**: визуализация динамики показателей (выручка/затраты и т.п.) на графике.
-- **Зарплатный отчёт (тёмная тема)**: сводка по начислениям/выплатам сотрудникам в тёмном оформлении.
-- **Список расходов (тёмная тема)**: журнал расходов с фильтрами и быстрым просмотром в тёмной теме.
-- **Редактирование расхода**: модальное окно создания/правки записи расхода.
-- **AI-чат (тёмная тема)**: диалог с AI-ассистентом для вопросов к данным в тёмной теме.
-- **Таблица аналитики AI**: табличный результат расчётов/метрик, которые AI подготовил по запросу.
-- **Лог AI / выполнения**: технический лог выполнения/анализа для прозрачности и отладки.
-- **Пользователи**: список пользователей и управление учётными записями.
-- **Расходы (расширенный вид)**: расширенное отображение списка расходов (больше деталей на строку).
-- **Печать подтверждения выплаты**: печатная форма подтверждения/квитанции по выплате.
+- **Login:** system sign-in and initial checkpoint for access/role verification.
+- **Dashboard (totals):** key period summary metrics in one place.
+- **Dashboard (chart):** visual trend chart of performance indicators (revenue/costs, etc.).
+- **Salary report (dark theme):** accrual/payout summary for employees in dark mode.
+- **Expense list (dark theme):** expense journal with filters and quick preview in dark mode.
+- **Expense editing:** modal window for creating/editing an expense record.
+- **AI chat (dark theme):** conversation with AI assistant for data questions in dark mode.
+- **AI analytics table:** tabular result of calculations/metrics prepared by AI for the request.
+- **AI / execution log:** technical execution/analysis log for transparency and debugging.
+- **Users:** user list and account management.
+- **Expenses (expanded view):** expanded expense list display (more details per row).
+- **Print payout confirmation:** printable payout confirmation/receipt form.
 
 ---
 
-## 🚀 Установка и запуск (Локально)
+## 🚀 Installation and Launch (Local)
 
-### 1. Клонирование репозитория
+### 1. Clone the Repository
 ```bash
-# Замените YOUR_USERNAME на актуальное имя пользователя или организацию
-git clone https://github.com/YOUR_USERNAME/salary-crm.git
+# Replace YOUR_USERNAME with the actual user or organization name
+git clone https://github.com/Mch-in/USES.git
 cd salary-crm
 ```
 
-### 2. Настройка виртуального окружения
+### 2. Set Up a Virtual Environment
 ```bash
 python -m venv venv
 
-# Активация окружения (Windows)
+# Activate environment (Windows)
 venv\Scripts\activate
 
-# Активация окружения (macOS/Linux)
+# Activate environment (macOS/Linux)
 source venv/bin/activate
 ```
 
-### 3. Установка зависимостей
+### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Настройка переменных окружения
-Скопируйте пример файла конфигурации и заполните его:
+### 4. Configure Environment Variables
+Copy the sample configuration file and fill it in:
 ```bash
 # macOS/Linux/Windows(Git Bash)
 cp .env.example .env
@@ -194,77 +194,77 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-| Переменная | Описание | Обязательно |
+| Variable | Description | Required |
 | ---------- | :--- | :---: |
-| `SECRET_KEY` | Секретный ключ Django | ✅ |
-| `DEBUG` | Включить режим отладки (`True` / `False`) | ✅ |
-| `CRM_WEBHOOK_BASE` | Валидный Webhook URL CRM24 для синхронизации (без него приложение не запустится) | ✅ |
-| `OPENAI_API_KEY` | Токен доступа к OpenAI API для работы AI-Аналитики | ❌ |
-| `DB_USER`, `DB_PASSWORD`... | Параметры подключения к MySQL (если используется MySQL) | ❌ |
+| `SECRET_KEY` | Django secret key | ✅ |
+| `DEBUG` | Enable debug mode (`True` / `False`) | ✅ |
+| `CRM_WEBHOOK_BASE` | Valid CRM24 webhook URL for synchronization | ✅ |
+| `OPENAI_API_KEY` | OpenAI API access token for AI analytics | ❌ |
+| `DB_USER`, `DB_PASSWORD`... | MySQL connection parameters (if MySQL is used) | ❌ |
 
-### 5. Миграции базы данных и создание суперпользователя
+### 5. Run DB Migrations and Create a Superuser
 ```bash
 python manage.py migrate
 python manage.py createsuperuser
 ```
 
-### 6. Запуск сервера
+### 6. Start the Server
 ```bash
 python manage.py runserver
 ```
 
-Приложение будет доступно по адресу: **http://127.0.0.1:8000/**
+The application will be available at: **http://127.0.0.1:8000/**
 
 ---
 
-## 🧪 Тестирование
+## 🧪 Testing
 
-Для запуска Unit-тестов приложения выполните команду:
+To run application unit tests, execute:
 ```bash
 python manage.py test
 ```
 
 ---
 
-## 📦 Развертывание (Production)
+## 📦 Deployment (Production)
 
-Для production-среды (`DEBUG=False`) потребуется сборка статики (используется `django-compressor` с офлайн-сжатием).
+For production (`DEBUG=False`), static assets must be built (using `django-compressor` with offline compression).
 
-1. Убедитесь, что настроены сервисы (Gunicorn/Docker/Nginx и др.).
-2. Соберите и сожмите статику:
+1. Ensure services are configured (Gunicorn/Docker/Nginx, etc.).
+2. Collect and compress static assets:
 ```bash
 python manage.py collectstatic --noinput
 python manage.py compress --force
 ```
 
-*(Рекомендуется запускать в изолированных контейнерах Docker).*
+*(Running in isolated Docker containers is recommended.)*
 
 ---
 
-## 🤝 Вклад в проект
+## 🤝 Contributing
 
-Если вы хотите помочь развитию проекта:
-1. Сделайте Fork репозитория.
-2. Создайте новую ветку (`git checkout -b feature/amazing-feature`).
-3. Закоммитьте изменения (`git commit -m 'Add amazing feature'`).
-4. Запушьте ветку (`git push origin feature/amazing-feature`).
-5. Откройте Pull Request.
+If you want to support project development:
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add amazing feature'`).
+4. Push the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
 
 ---
 
-## ✉️ Контакты
+## ✉️ Contacts
 
-**Автор:** [Ваше Имя / Никнейм]  
+**Author:** [Your Name / Nickname]  
 **Email:** your.email@example.com  
 **Telegram:** [@your_telegram](https://t.me/your_telegram)  
 **GitHub:** [github.com/YOUR_USERNAME](https://github.com/YOUR_USERNAME)
 
-**Хотите демо или пилот?** Напишите в Telegram/Email — покажу сценарии “зарплата/расходы/аналитика” на реальных примерах и помогу быстро развернуть проект.
+**Need a demo or pilot?** Write in Telegram/Email - I will show real "salary/expenses/analytics" scenarios and help you deploy the project quickly.
 
-Если у вас есть идеи по улучшению проекта или вы нашли баг, пожалуйста, создайте **Issue** в этом репозитории!
+If you have ideas to improve the project or found a bug, please open an **Issue** in this repository!
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
-Проект распространяется под лицензией MIT. Текст лицензии — в файле [`LICENSE`](LICENSE) в корне репозитория.
+This project is distributed under the MIT License. The license text is available in [`LICENSE`](LICENSE) in the repository root.
