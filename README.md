@@ -64,7 +64,7 @@
 - 🤖 **Smart AI Analytics:** tool-calling AI assistant with multi-step queries, streaming responses, chat history, and saved tabular results.
 - 🛡️ **Permission system:** authorization and role-based access to admin and analytics tools.
 - 🧾 **Operational UX features:** print payout/expense confirmations and quickly calculate manager payout balances.
-- 🌐 **Interface language:** switch RU / UA / EN in UI (Django i18n).
+- 🌐 **Interface language:** switch RU / UKR / EN in UI (Django i18n).
 - 🌓 **Theme support:** light and dark themes; choice is persisted in browser (`localStorage`).
 
 ### 🧠 How Smart Analytics Works (Tool Agent / Function Calling) <a name="ai-analytics"></a>
