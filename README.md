@@ -165,7 +165,7 @@ Below are several real screens from the application.
 ```bash
 # Replace YOUR_USERNAME with the actual user or organization name
 git clone https://github.com/Mch-in/USES.git
-cd salary-crm
+cd USES
 ```
 
 ### 2. Set Up a Virtual Environment
