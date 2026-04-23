@@ -73,7 +73,7 @@
 
 The current version uses an **agent loop based on Function Calling** (without generating and `exec()`-ing arbitrary Python code). In other words, it is an "AI analyst with a safe set of tools," not an interpreter for arbitrary scripts:
 
-1. **Request + context:** the user sends a question. The app passes context to the model (chat history, active dashboard filters, question language RU/UK/EN).
+1. **Request + context:** the user sends a question. The app passes context to the model (chat history, active dashboard filters, question language RU/UKR/EN).
 2. **Server tool calls:** the model calls strictly defined functions:
    - `crm_analytics_aggregate` - aggregates (sum, count, average, max) for sales/expenses/payouts;
    - `crm_analytics_list` - detailed record rows;
