@@ -201,7 +201,7 @@ Copy-Item .env.example .env
 | ---------- | :--- | :---: |
 | `SECRET_KEY` | Django secret key (required for production; set in local too) | ✅ |
 | `DEBUG` | Enable debug mode (`True` / `False`) | ✅ |
-| `CRM_WEBHOOK_BASE` | Valid CRM24 webhook URL for synchronization (app will not start without it) | ✅ |
+| `CRM_WEBHOOK_BASE` | CRM24 webhook URL for synchronization (if empty, app will not start; if invalid, loading deals will fail) | ✅ |
 | `CRM_CONNECT_TIMEOUT`, `CRM_READ_TIMEOUT` | CRM API timeouts in seconds (defaults: `30` / `120`) | ❌ |
 | `GPT_MODEL_TYPE` | LLM backend type (default: `openai`) | ❌ |
 | `OPENAI_API_KEY` | API key for AI analytics | ❌ |
