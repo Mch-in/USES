@@ -264,10 +264,10 @@ If you want to support project development:
 
 ## ✉️ Contacts
 
-**Author:** [Your Name / Nickname]  
-**Email:** your.email@example.com  
-**Telegram:** [@your_telegram](https://t.me/your_telegram)  
-**GitHub:** [github.com/YOUR_USERNAME](https://github.com/YOUR_USERNAME)
+**Author:** [Ivan]  
+**Email:** TheMarenych@gmail.com  
+**Telegram:** [@IMarenich](https://t.me/IMarenich)  
+**GitHub:** [github.com/Mch-in](https://github.com/Mch-in)
 
 **Need a demo or pilot?** Write in Telegram/Email - I will show real "salary/expenses/analytics" scenarios and help you deploy the project quickly.
 
